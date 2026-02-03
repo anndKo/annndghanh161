@@ -9,7 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
-import { GraduationCap, Mail, Lock, User, ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import { GraduationCap, Mail, Lock, User, ArrowLeft, Eye, EyeOff, HelpCircle } from 'lucide-react';
+import ForgotPasswordDialog from '@/components/ForgotPasswordDialog';
 import { z } from 'zod';
 const loginSchema = z.object({
   email: z.string().email('Email không hợp lệ'),
@@ -41,6 +42,7 @@ const Auth = () => {
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') === 'signup' ? 'signup' : 'login');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
 
   // Login form state
   const [loginEmail, setLoginEmail] = useState('');
@@ -245,6 +247,19 @@ const Auth = () => {
                     {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
                   </div>
                   
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      className="text-muted-foreground hover:text-primary p-0 h-auto"
+                      onClick={() => setForgotPasswordOpen(true)}
+                    >
+                      <HelpCircle className="w-3 h-3 mr-1" />
+                      Quên mật khẩu?
+                    </Button>
+                  </div>
+                  
                   <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
                     {isSubmitting ? 'Đang xử lý...' : 'Đăng nhập'}
                   </Button>
@@ -325,7 +340,10 @@ const Auth = () => {
           </Tabs>
         </Card>
         
-        
+        <ForgotPasswordDialog 
+          open={forgotPasswordOpen} 
+          onOpenChange={setForgotPasswordOpen} 
+        />
       </div>
     </div>;
 };

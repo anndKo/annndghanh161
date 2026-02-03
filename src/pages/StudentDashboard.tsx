@@ -28,8 +28,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  GraduationCap, LogOut, BookOpen, Search, Filter, MapPin, Monitor, Users, User, Loader2, MessageCircle, Star, UserPlus, Copy, Clock, CheckCircle2, CreditCard, ClipboardList, Menu, Tag, Calendar, CalendarCheck
+  GraduationCap, LogOut, BookOpen, Search, Filter, MapPin, Monitor, Users, User, Loader2, MessageCircle, Star, UserPlus, Copy, Clock, CheckCircle2, CreditCard, ClipboardList, Menu, Tag, Calendar, CalendarCheck, RefreshCw
 } from 'lucide-react';
+import TutorInfoDialog from '@/components/TutorInfoDialog';
+import ReEnrollButton from '@/components/ReEnrollButton';
 
 const SUBJECTS = ['Toán', 'Vật Lý', 'Hóa Học', 'Sinh Học', 'Ngữ Văn', 'Tiếng Anh', 'Lịch Sử', 'Địa Lý', 'GDCD', 'Tin Học'];
 const GRADES = ['Lớp 1', 'Lớp 2', 'Lớp 3', 'Lớp 4', 'Lớp 5', 'Lớp 6', 'Lớp 7', 'Lớp 8', 'Lớp 9', 'Lớp 10', 'Lớp 11', 'Lớp 12'];
@@ -101,11 +103,14 @@ const StudentDashboard = () => {
   const [autoMessage, setAutoMessage] = useState('');
   const [enrollmentRequestsOpen, setEnrollmentRequestsOpen] = useState(false);
   const [attendanceOpen, setAttendanceOpen] = useState(false);
+  const [tutorInfoOpen, setTutorInfoOpen] = useState(false);
+  const [selectedTutorForInfo, setSelectedTutorForInfo] = useState<TopTutor | null>(null);
   
   const [subjectFilter, setSubjectFilter] = useState<string>('all');
   const [gradeFilter, setGradeFilter] = useState<string>('all');
   const [formatFilter, setFormatFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [addressFilter, setAddressFilter] = useState('');
 
   const userShortId = user?.id?.slice(0, 8).toUpperCase() || '';
 
@@ -250,6 +255,7 @@ const StudentDashboard = () => {
     if (gradeFilter !== 'all' && c.grade !== gradeFilter) return false;
     if (formatFilter !== 'all' && c.teaching_format !== formatFilter) return false;
     if (searchQuery && !c.display_id?.toLowerCase().includes(searchQuery.toLowerCase()) && !c.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    if (addressFilter && c.address && !c.address.toLowerCase().includes(addressFilter.toLowerCase())) return false;
     return true;
   });
 
@@ -257,6 +263,25 @@ const StudentDashboard = () => {
     const enrollment = enrollments.find(e => e.class_id === classId);
     return enrollment?.status || null;
   };
+
+  // Get removed enrollments (expired classes)
+  const getRemovedEnrollments = async () => {
+    if (!user) return [];
+    const { data } = await supabase
+      .from('enrollments')
+      .select('id, class_id, status, removal_reason, classes(*)')
+      .eq('student_id', user.id)
+      .eq('status', 'removed');
+    return (data || []).filter(e => e.classes) as any[];
+  };
+
+  const [expiredEnrollments, setExpiredEnrollments] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (user) {
+      getRemovedEnrollments().then(data => setExpiredEnrollments(data));
+    }
+  }, [user, enrollments]);
 
   const approvedEnrollments = enrollments.filter(e => e.status === 'approved');
   const pendingEnrollments = enrollments.filter(e => e.status === 'pending');
@@ -347,7 +372,7 @@ const StudentDashboard = () => {
             <Card className="mb-6">
               <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Filter className="w-5 h-5" />Bộ lọc & Tìm kiếm</CardTitle></CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
                   <div className="space-y-2">
                     <Label>Tìm theo mã lớp</Label>
                     <Input placeholder="Nhập mã lớp (VD: CL12345)" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
@@ -355,7 +380,11 @@ const StudentDashboard = () => {
                   <div className="space-y-2"><Label>Môn học</Label><Select value={subjectFilter} onValueChange={setSubjectFilter}><SelectTrigger><SelectValue placeholder="Tất cả môn" /></SelectTrigger><SelectContent><SelectItem value="all">Tất cả môn</SelectItem>{SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
                   <div className="space-y-2"><Label>Lớp</Label><Select value={gradeFilter} onValueChange={setGradeFilter}><SelectTrigger><SelectValue placeholder="Tất cả lớp" /></SelectTrigger><SelectContent><SelectItem value="all">Tất cả lớp</SelectItem>{GRADES.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}</SelectContent></Select></div>
                   <div className="space-y-2"><Label>Hình thức</Label><Select value={formatFilter} onValueChange={setFormatFilter}><SelectTrigger><SelectValue placeholder="Tất cả" /></SelectTrigger><SelectContent><SelectItem value="all">Tất cả</SelectItem><SelectItem value="online">Online</SelectItem><SelectItem value="offline">Offline</SelectItem><SelectItem value="both">Cả hai</SelectItem></SelectContent></Select></div>
-                  <div className="flex items-end"><Button variant="outline" className="w-full" onClick={() => { setSubjectFilter('all'); setGradeFilter('all'); setFormatFilter('all'); setSearchQuery(''); }}>Xóa bộ lọc</Button></div>
+                  <div className="space-y-2">
+                    <Label>Địa chỉ</Label>
+                    <Input placeholder="Nhập địa chỉ tìm kiếm..." value={addressFilter} onChange={(e) => setAddressFilter(e.target.value)} />
+                  </div>
+                  <div className="flex items-end"><Button variant="outline" className="w-full" onClick={() => { setSubjectFilter('all'); setGradeFilter('all'); setFormatFilter('all'); setSearchQuery(''); setAddressFilter(''); }}>Xóa bộ lọc</Button></div>
                 </div>
               </CardContent>
             </Card>
@@ -482,6 +511,40 @@ const StudentDashboard = () => {
                     ))}
                   </div>
                 )}
+
+                {/* Expired Classes Section */}
+                {expiredEnrollments.length > 0 && (
+                  <div className="mt-6 pt-6 border-t border-border">
+                    <h4 className="font-semibold text-muted-foreground flex items-center gap-2 mb-4">
+                      <RefreshCw className="w-4 h-4" />
+                      Lớp đã hết hạn ({expiredEnrollments.length})
+                    </h4>
+                    <div className="space-y-4">
+                      {expiredEnrollments.map((enrollment: any) => (
+                        <div 
+                          key={enrollment.id} 
+                          className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border border-border rounded-lg bg-muted/30 gap-3"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-mono text-muted-foreground">{enrollment.classes.display_id}</p>
+                            <h3 className="font-semibold">{enrollment.classes.name}</h3>
+                            <p className="text-sm text-muted-foreground">{enrollment.classes.subject} • {enrollment.classes.grade}</p>
+                            <p className="text-xs text-destructive mt-1">{enrollment.removal_reason || 'Đã hết hạn'}</p>
+                          </div>
+                          <ReEnrollButton
+                            classId={enrollment.class_id}
+                            className={enrollment.classes.name}
+                            classDisplayId={enrollment.classes.display_id}
+                            onSuccess={() => {
+                              fetchEnrollments();
+                              getRemovedEnrollments().then(data => setExpiredEnrollments(data));
+                            }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -523,7 +586,12 @@ const StudentDashboard = () => {
                         <div
                           key={tutor.tutor_id}
                           className={`flex items-center justify-between p-3 border border-border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors ${selectedTutor?.tutor_id === tutor.tutor_id ? 'ring-2 ring-primary' : ''}`}
-                          onClick={() => { setSelectedTutor(tutor); fetchTutorClasses(tutor.tutor_id); }}
+                          onClick={() => { 
+                            setSelectedTutor(tutor); 
+                            fetchTutorClasses(tutor.tutor_id);
+                            setSelectedTutorForInfo(tutor);
+                            setTutorInfoOpen(true);
+                          }}
                         >
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
@@ -680,6 +748,18 @@ const StudentDashboard = () => {
         open={attendanceOpen}
         onOpenChange={setAttendanceOpen}
       />
+
+      {/* Tutor Info Dialog */}
+      {selectedTutorForInfo && (
+        <TutorInfoDialog
+          open={tutorInfoOpen}
+          onOpenChange={setTutorInfoOpen}
+          tutorId={selectedTutorForInfo.tutor_id}
+          tutorName={selectedTutorForInfo.full_name}
+          avgRating={selectedTutorForInfo.avg_rating}
+          ratingCount={selectedTutorForInfo.rating_count}
+        />
+      )}
     </div>
   );
 };

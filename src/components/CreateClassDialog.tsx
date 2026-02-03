@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, UserPlus, Percent, Tag, Clock, Plus, X } from 'lucide-react';
+import { Loader2, UserPlus, Percent, Tag, Clock, Plus, X, MapPin } from 'lucide-react';
 
 const SUBJECTS = [
   'Toán', 'Vật Lý', 'Hóa Học', 'Sinh Học', 'Ngữ Văn', 
@@ -68,7 +68,10 @@ const CreateClassDialog = ({
     price_per_session: '',
     max_students: '20',
     tutor_id: initialTutorId || '',
-    address: '',
+    // Address fields
+    province: '',
+    district: '',
+    detailed_address: '',
     trial_days: '7',
     discount_percent: '0',
     tutor_percentage: '70',
@@ -127,6 +130,11 @@ const CreateClassDialog = ({
 
     setSubmitting(true);
     try {
+      // Combine address fields
+      const fullAddress = [formData.province, formData.district, formData.detailed_address]
+        .filter(Boolean)
+        .join(', ');
+
       const { error } = await supabase.from('classes').insert({
         name: formData.name,
         subject: formData.subject,
@@ -138,7 +146,7 @@ const CreateClassDialog = ({
         max_students: parseInt(formData.max_students),
         tutor_id: formData.tutor_id && formData.tutor_id !== 'no-tutor' ? formData.tutor_id : null,
         is_active: true,
-        address: formData.address || null,
+        address: fullAddress || null,
         trial_days: parseInt(formData.trial_days) || 7,
         discount_percent: discountEnabled ? parseInt(formData.discount_percent) || 0 : 0,
         tutor_percentage: parseInt(formData.tutor_percentage) || 70,
@@ -175,7 +183,9 @@ const CreateClassDialog = ({
         price_per_session: '',
         max_students: '20',
         tutor_id: '',
-        address: '',
+        province: '',
+        district: '',
+        detailed_address: '',
         trial_days: '7',
         discount_percent: '0',
         tutor_percentage: '70',
@@ -370,14 +380,41 @@ const CreateClassDialog = ({
             </RadioGroup>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="address">Địa chỉ chi tiết (cho lớp offline)</Label>
-            <Input
-              id="address"
-              value={formData.address}
-              onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
-              placeholder="VD: 123 Nguyễn Văn A, Quận 1, TP.HCM"
-            />
+          {/* Address fields */}
+          <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+            <Label className="flex items-center gap-2">
+              <MapPin className="w-4 h-4" />
+              Địa chỉ (cho lớp offline)
+            </Label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="province">Tỉnh/Thành phố</Label>
+                <Input
+                  id="province"
+                  value={formData.province}
+                  onChange={(e) => setFormData(prev => ({ ...prev, province: e.target.value }))}
+                  placeholder="VD: TP. Hồ Chí Minh"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="district">Quận/Huyện/Thị xã</Label>
+                <Input
+                  id="district"
+                  value={formData.district}
+                  onChange={(e) => setFormData(prev => ({ ...prev, district: e.target.value }))}
+                  placeholder="VD: Quận 1"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="detailed_address">Địa chỉ chi tiết</Label>
+              <Input
+                id="detailed_address"
+                value={formData.detailed_address}
+                onChange={(e) => setFormData(prev => ({ ...prev, detailed_address: e.target.value }))}
+                placeholder="VD: 123 Nguyễn Huệ, Phường Bến Nghé"
+              />
+            </div>
           </div>
 
           {/* Schedule */}

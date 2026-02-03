@@ -19,6 +19,7 @@ import AdminEnrollmentRequestDialog from '@/components/AdminEnrollmentRequestDia
 import AdminEnrollmentApprovalDialog from '@/components/AdminEnrollmentApprovalDialog';
 import MobileMenu from '@/components/MobileMenu';
 import AdminAttendanceStats from '@/components/AdminAttendanceStats';
+import AdminPasswordResetRequests from '@/components/AdminPasswordResetRequests';
 import {
   GraduationCap,
   Users,
@@ -44,6 +45,7 @@ import {
   Send,
   Menu,
   CalendarCheck,
+  RefreshCw,
 } from 'lucide-react';
 import {
   Dialog,
@@ -293,6 +295,7 @@ const AdminDashboard = () => {
   const [selectedStudentForRequest, setSelectedStudentForRequest] = useState<{ id: string; name: string } | null>(null);
   const [enrollmentApprovalOpen, setEnrollmentApprovalOpen] = useState(false);
   const [attendanceStatsOpen, setAttendanceStatsOpen] = useState(false);
+  const [passwordResetOpen, setPasswordResetOpen] = useState(false);
   const userShortId = user?.id?.slice(0, 8).toUpperCase() || '';
 
   useEffect(() => {
@@ -700,6 +703,9 @@ const AdminDashboard = () => {
             <Button variant="ghost" size="icon" onClick={() => setAttendanceStatsOpen(true)} title="Thống kê điểm danh">
               <CalendarCheck className="w-5 h-5" />
             </Button>
+            <Button variant="ghost" size="icon" onClick={() => setPasswordResetOpen(true)} title="Yêu cầu đặt lại mật khẩu">
+              <RefreshCw className="w-5 h-5" />
+            </Button>
             <Button variant="ghost" size="icon" onClick={() => setMessagingOpen(true)}>
               <MessageCircle className="w-5 h-5" />
             </Button>
@@ -713,6 +719,14 @@ const AdminDashboard = () => {
           <div className="flex md:hidden items-center gap-1">
             <NotificationBell />
             <MobileMenu title="Menu Admin">
+              <Button variant="ghost" className="w-full justify-start" onClick={() => setAttendanceStatsOpen(true)}>
+                <CalendarCheck className="w-5 h-5 mr-2" />
+                Thống kê điểm danh
+              </Button>
+              <Button variant="ghost" className="w-full justify-start" onClick={() => setPasswordResetOpen(true)}>
+                <RefreshCw className="w-5 h-5 mr-2" />
+                Yêu cầu đặt lại mật khẩu
+              </Button>
               <Button variant="ghost" className="w-full justify-start" onClick={() => setMessagingOpen(true)}>
                 <MessageCircle className="w-5 h-5 mr-2" />
                 Tin nhắn
@@ -1298,6 +1312,12 @@ const AdminDashboard = () => {
       <AdminAttendanceStats
         open={attendanceStatsOpen}
         onOpenChange={setAttendanceStatsOpen}
+      />
+
+      {/* Password Reset Requests Dialog */}
+      <AdminPasswordResetRequests
+        open={passwordResetOpen}
+        onOpenChange={setPasswordResetOpen}
       />
     </div>
   );

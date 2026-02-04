@@ -23,6 +23,7 @@ import {
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, UserPlus, Percent, Tag, Clock, Plus, X, MapPin } from 'lucide-react';
+import { formatPriceInput, parsePriceInput } from '@/lib/formatPrice';
 
 const SUBJECTS = [
   'Toán', 'Vật Lý', 'Hóa Học', 'Sinh Học', 'Ngữ Văn', 
@@ -37,6 +38,12 @@ interface Tutor {
   user_id: string;
   full_name: string;
   teachable_subjects: string[];
+}
+
+interface ScheduleItem {
+  day: string;
+  startTime: string;
+  endTime: string;
 }
 
 interface CreateClassDialogProps {
@@ -57,6 +64,7 @@ const CreateClassDialog = ({
   const [tutors, setTutors] = useState<Tutor[]>([]);
   const [loadingTutors, setLoadingTutors] = useState(false);
   const [discountEnabled, setDiscountEnabled] = useState(false);
+  const [priceDisplay, setPriceDisplay] = useState('');
   
   const [formData, setFormData] = useState({
     name: '',
@@ -75,11 +83,10 @@ const CreateClassDialog = ({
     trial_days: '7',
     discount_percent: '0',
     tutor_percentage: '70',
-    schedule_start_time: '',
-    schedule_end_time: '',
   });
   
-  const [scheduleDays, setScheduleDays] = useState<string[]>([]);
+  // Schedule with different times for each day
+  const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
 
   useEffect(() => {
     if (open) {
@@ -104,10 +111,35 @@ const CreateClassDialog = ({
     }
   };
 
+  const handlePriceChange = (value: string) => {
+    const formatted = formatPriceInput(value);
+    setPriceDisplay(formatted);
+    setFormData(prev => ({ ...prev, price_per_session: String(parsePriceInput(formatted)) }));
+  };
+
+  const addScheduleItem = (day: string) => {
+    if (!scheduleItems.find(s => s.day === day)) {
+      setScheduleItems(prev => [...prev, { day, startTime: '', endTime: '' }]);
+    }
+  };
+
+  const updateScheduleItem = (day: string, field: 'startTime' | 'endTime', value: string) => {
+    setScheduleItems(prev => 
+      prev.map(item => 
+        item.day === day ? { ...item, [field]: value } : item
+      )
+    );
+  };
+
+  const removeScheduleItem = (day: string) => {
+    setScheduleItems(prev => prev.filter(item => item.day !== day));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.name || !formData.subject || !formData.grade || !formData.price_per_session) {
+    const priceValue = parsePriceInput(priceDisplay);
+    if (!formData.name || !formData.subject || !formData.grade || priceValue <= 0) {
       toast({
         variant: 'destructive',
         title: 'Thiếu thông tin',
@@ -116,13 +148,13 @@ const CreateClassDialog = ({
       return;
     }
 
-    // Validate time if both are provided
-    if (formData.schedule_start_time && formData.schedule_end_time) {
-      if (formData.schedule_end_time <= formData.schedule_start_time) {
+    // Validate schedule times
+    for (const item of scheduleItems) {
+      if (item.startTime && item.endTime && item.endTime <= item.startTime) {
         toast({
           variant: 'destructive',
           title: 'Lỗi thời gian',
-          description: 'Giờ kết thúc phải sau giờ bắt đầu',
+          description: `Giờ kết thúc phải sau giờ bắt đầu cho ${item.day}`,
         });
         return;
       }
@@ -135,6 +167,15 @@ const CreateClassDialog = ({
         .filter(Boolean)
         .join(', ');
 
+      // Format schedule as JSON string with day-specific times
+      const scheduleDays = scheduleItems.map(s => s.day).join(', ');
+      const scheduleData = scheduleItems.length > 0 
+        ? JSON.stringify(scheduleItems)
+        : null;
+
+      // Get first schedule item times as default for backward compatibility
+      const firstSchedule = scheduleItems[0];
+
       const { error } = await supabase.from('classes').insert({
         name: formData.name,
         subject: formData.subject,
@@ -142,7 +183,7 @@ const CreateClassDialog = ({
         description: formData.description || null,
         teaching_format: formData.teaching_format,
         class_type: formData.class_type,
-        price_per_session: parseFloat(formData.price_per_session),
+        price_per_session: priceValue,
         max_students: parseInt(formData.max_students),
         tutor_id: formData.tutor_id && formData.tutor_id !== 'no-tutor' ? formData.tutor_id : null,
         is_active: true,
@@ -150,9 +191,9 @@ const CreateClassDialog = ({
         trial_days: parseInt(formData.trial_days) || 7,
         discount_percent: discountEnabled ? parseInt(formData.discount_percent) || 0 : 0,
         tutor_percentage: parseInt(formData.tutor_percentage) || 70,
-        schedule_days: scheduleDays.length > 0 ? scheduleDays.join(', ') : null,
-        schedule_start_time: formData.schedule_start_time || null,
-        schedule_end_time: formData.schedule_end_time || null,
+        schedule_days: scheduleDays || null,
+        schedule_start_time: firstSchedule?.startTime || null,
+        schedule_end_time: firstSchedule?.endTime || null,
       });
 
       if (error) throw error;
@@ -189,10 +230,9 @@ const CreateClassDialog = ({
         trial_days: '7',
         discount_percent: '0',
         tutor_percentage: '70',
-        schedule_start_time: '',
-        schedule_end_time: '',
       });
-      setScheduleDays([]);
+      setScheduleItems([]);
+      setPriceDisplay('');
       setDiscountEnabled(false);
 
       onOpenChange(false);
@@ -213,7 +253,7 @@ const CreateClassDialog = ({
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price);
   };
 
-  const originalPrice = parseFloat(formData.price_per_session) || 0;
+  const originalPrice = parsePriceInput(priceDisplay) || 0;
   const discountedPrice = discountEnabled && formData.discount_percent
     ? originalPrice - (originalPrice * (parseInt(formData.discount_percent) || 0) / 100)
     : originalPrice;
@@ -417,77 +457,77 @@ const CreateClassDialog = ({
             </div>
           </div>
 
-          {/* Schedule */}
+          {/* Schedule with different times per day */}
           <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
             <Label className="flex items-center gap-2">
               <Clock className="w-4 h-4" />
-              Lịch học
+              Lịch học (thời gian riêng mỗi ngày)
             </Label>
-            <div className="space-y-2">
-              <Label>Ngày học</Label>
-              <div className="flex flex-wrap gap-2 mb-2">
-                {scheduleDays.map((day, index) => (
-                  <Badge key={index} variant="secondary" className="flex items-center gap-1">
-                    {day}
-                    <button
+            
+            {/* Existing schedule items */}
+            {scheduleItems.length > 0 && (
+              <div className="space-y-2">
+                {scheduleItems.map((item) => (
+                  <div key={item.day} className="flex items-center gap-2 p-2 bg-background rounded border">
+                    <Badge variant="secondary" className="min-w-[70px] justify-center">
+                      {item.day}
+                    </Badge>
+                    <Input
+                      type="time"
+                      value={item.startTime}
+                      onChange={(e) => updateScheduleItem(item.day, 'startTime', e.target.value)}
+                      className="w-28"
+                      placeholder="Bắt đầu"
+                    />
+                    <span className="text-muted-foreground">-</span>
+                    <Input
+                      type="time"
+                      value={item.endTime}
+                      onChange={(e) => updateScheduleItem(item.day, 'endTime', e.target.value)}
+                      className="w-28"
+                      placeholder="Kết thúc"
+                    />
+                    <Button
                       type="button"
-                      onClick={() => setScheduleDays(prev => prev.filter((_, i) => i !== index))}
-                      className="ml-1 hover:text-destructive"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeScheduleItem(item.day)}
+                      className="h-8 w-8 text-destructive hover:text-destructive"
                     >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </Badge>
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
                 ))}
               </div>
-              <div className="flex gap-2">
-                <Select
-                  value=""
-                  onValueChange={(value) => {
-                    if (value && !scheduleDays.includes(value)) {
-                      setScheduleDays(prev => [...prev, value]);
-                    }
-                  }}
-                >
-                  <SelectTrigger className="flex-1">
-                    <SelectValue placeholder="Thêm ngày học" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {WEEKDAYS.filter(day => !scheduleDays.includes(day)).map(day => (
-                      <SelectItem key={day} value={day}>{day}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => {
-                    const nextDay = WEEKDAYS.find(d => !scheduleDays.includes(d));
-                    if (nextDay) setScheduleDays(prev => [...prev, nextDay]);
-                  }}
-                  disabled={scheduleDays.length >= WEEKDAYS.length}
-                >
-                  <Plus className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Giờ bắt đầu</Label>
-                <Input
-                  type="time"
-                  value={formData.schedule_start_time}
-                  onChange={(e) => setFormData(prev => ({ ...prev, schedule_start_time: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Giờ kết thúc</Label>
-                <Input
-                  type="time"
-                  value={formData.schedule_end_time}
-                  onChange={(e) => setFormData(prev => ({ ...prev, schedule_end_time: e.target.value }))}
-                />
-              </div>
+            )}
+            
+            {/* Add new day */}
+            <div className="flex gap-2">
+              <Select
+                value=""
+                onValueChange={(value) => addScheduleItem(value)}
+              >
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Thêm ngày học" />
+                </SelectTrigger>
+                <SelectContent>
+                  {WEEKDAYS.filter(day => !scheduleItems.find(s => s.day === day)).map(day => (
+                    <SelectItem key={day} value={day}>{day}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => {
+                  const nextDay = WEEKDAYS.find(d => !scheduleItems.find(s => s.day === d));
+                  if (nextDay) addScheduleItem(nextDay);
+                }}
+                disabled={scheduleItems.length >= WEEKDAYS.length}
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
             </div>
           </div>
 
@@ -496,12 +536,11 @@ const CreateClassDialog = ({
               <Label htmlFor="price">Học phí/buổi (VND) *</Label>
               <Input
                 id="price"
-                type="number"
+                type="text"
                 required
-                min="0"
-                value={formData.price_per_session}
-                onChange={(e) => setFormData(prev => ({ ...prev, price_per_session: e.target.value }))}
-                placeholder="150000"
+                value={priceDisplay}
+                onChange={(e) => handlePriceChange(e.target.value)}
+                placeholder="100,000"
               />
             </div>
 

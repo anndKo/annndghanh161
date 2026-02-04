@@ -292,6 +292,47 @@ export type Database = {
           },
         ]
       }
+      class_requests: {
+        Row: {
+          admin_response: string | null
+          class_id: string
+          created_at: string
+          id: string
+          note: string | null
+          status: string
+          tutor_id: string
+          updated_at: string
+        }
+        Insert: {
+          admin_response?: string | null
+          class_id: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          status?: string
+          tutor_id: string
+          updated_at?: string
+        }
+        Update: {
+          admin_response?: string | null
+          class_id?: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          status?: string
+          tutor_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_requests_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       class_submissions: {
         Row: {
           content: string | null
@@ -350,6 +391,7 @@ export type Database = {
           grade: string
           id: string
           is_active: boolean
+          is_shared: boolean | null
           max_students: number | null
           name: string
           price_per_session: number
@@ -373,6 +415,7 @@ export type Database = {
           grade: string
           id?: string
           is_active?: boolean
+          is_shared?: boolean | null
           max_students?: number | null
           name: string
           price_per_session: number
@@ -396,6 +439,7 @@ export type Database = {
           grade?: string
           id?: string
           is_active?: boolean
+          is_shared?: boolean | null
           max_students?: number | null
           name?: string
           price_per_session?: number

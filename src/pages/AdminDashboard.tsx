@@ -20,6 +20,7 @@ import AdminEnrollmentApprovalDialog from '@/components/AdminEnrollmentApprovalD
 import MobileMenu from '@/components/MobileMenu';
 import AdminAttendanceStats from '@/components/AdminAttendanceStats';
 import AdminPasswordResetRequests from '@/components/AdminPasswordResetRequests';
+import AdminClassRequestsDialog from '@/components/AdminClassRequestsDialog';
 import {
   GraduationCap,
   Users,
@@ -46,6 +47,8 @@ import {
   Menu,
   CalendarCheck,
   RefreshCw,
+  Share2,
+  Briefcase,
 } from 'lucide-react';
 import {
   Dialog,
@@ -296,6 +299,7 @@ const AdminDashboard = () => {
   const [enrollmentApprovalOpen, setEnrollmentApprovalOpen] = useState(false);
   const [attendanceStatsOpen, setAttendanceStatsOpen] = useState(false);
   const [passwordResetOpen, setPasswordResetOpen] = useState(false);
+  const [classRequestsOpen, setClassRequestsOpen] = useState(false);
   const userShortId = user?.id?.slice(0, 8).toUpperCase() || '';
 
   useEffect(() => {
@@ -639,6 +643,59 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleShareClass = async (classId: string, classItem: ClassItem) => {
+    try {
+      // Toggle share status
+      const currentClass = classes.find(c => c.id === classId);
+      const newShareStatus = !(currentClass as any)?.is_shared;
+
+      const { error } = await supabase
+        .from('classes')
+        .update({ is_shared: newShareStatus })
+        .eq('id', classId);
+
+      if (error) throw error;
+
+      if (newShareStatus) {
+        // Notify all tutors
+        const { data: tutors } = await supabase
+          .from('user_roles')
+          .select('user_id')
+          .eq('role', 'tutor');
+
+        if (tutors) {
+          for (const tutor of tutors) {
+            await supabase.from('notifications').insert({
+              user_id: tutor.user_id,
+              type: 'class_shared',
+              title: 'Lớp mới cần gia sư',
+              message: `Lớp "${classItem.name}" đang cần gia sư. Bấm để xem chi tiết.`,
+              related_id: classId,
+            });
+          }
+        }
+
+        toast({
+          title: 'Đã chia sẻ',
+          description: 'Lớp đã được chia sẻ cho tất cả gia sư',
+        });
+      } else {
+        toast({
+          title: 'Đã hủy chia sẻ',
+          description: 'Lớp đã được gỡ khỏi danh sách chia sẻ',
+        });
+      }
+
+      fetchClasses();
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Lỗi',
+        description: error.message,
+      });
+    }
+  };
+
   const handleLogout = async () => {
     await signOut();
     navigate('/');
@@ -700,6 +757,9 @@ const AdminDashboard = () => {
           {/* Desktop buttons */}
           <div className="hidden md:flex items-center gap-2">
             <NotificationBell />
+            <Button variant="ghost" size="icon" onClick={() => setClassRequestsOpen(true)} title="Yêu cầu nhận lớp">
+              <Briefcase className="w-5 h-5" />
+            </Button>
             <Button variant="ghost" size="icon" onClick={() => setAttendanceStatsOpen(true)} title="Thống kê điểm danh">
               <CalendarCheck className="w-5 h-5" />
             </Button>
@@ -719,6 +779,10 @@ const AdminDashboard = () => {
           <div className="flex md:hidden items-center gap-1">
             <NotificationBell />
             <MobileMenu title="Menu Admin">
+              <Button variant="ghost" className="w-full justify-start" onClick={() => setClassRequestsOpen(true)}>
+                <Briefcase className="w-5 h-5 mr-2" />
+                Yêu cầu nhận lớp
+              </Button>
               <Button variant="ghost" className="w-full justify-start" onClick={() => setAttendanceStatsOpen(true)}>
                 <CalendarCheck className="w-5 h-5 mr-2" />
                 Thống kê điểm danh
@@ -1318,6 +1382,13 @@ const AdminDashboard = () => {
       <AdminPasswordResetRequests
         open={passwordResetOpen}
         onOpenChange={setPasswordResetOpen}
+      />
+
+      {/* Class Requests Dialog */}
+      <AdminClassRequestsDialog
+        open={classRequestsOpen}
+        onOpenChange={setClassRequestsOpen}
+        onApproved={fetchClasses}
       />
     </div>
   );

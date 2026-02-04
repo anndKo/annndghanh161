@@ -10,6 +10,7 @@ import NotificationBell from '@/components/NotificationBell';
 import MessagingSystem from '@/components/MessagingSystem';
 import TutorPaymentRequestDialog from '@/components/TutorPaymentRequestDialog';
 import TutorRevenueDialog from '@/components/TutorRevenueDialog';
+import SharedClassesButton from '@/components/SharedClassesButton';
 import { useBackButtonBlock } from '@/hooks/useBackButtonBlock';
 import MobileMenu from '@/components/MobileMenu';
 import {
@@ -29,6 +30,7 @@ import {
   Send,
   DollarSign,
   Menu,
+  Briefcase,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -302,6 +304,7 @@ const TutorDashboard = () => {
           
           {/* Desktop buttons */}
           <div className="hidden md:flex items-center gap-2 flex-wrap">
+            <SharedClassesButton />
             <Button variant="outline" size="sm" onClick={() => setPaymentRequestOpen(true)} className="gap-1">
               <Send className="w-4 h-4" />
               <span className="hidden sm:inline">Gửi nhiệm vụ</span>
@@ -326,6 +329,7 @@ const TutorDashboard = () => {
           
           {/* Mobile menu */}
           <div className="flex md:hidden items-center gap-1">
+            <SharedClassesButton />
             <NotificationBell />
             <MobileMenu title="Menu gia sư">
               <Button variant="ghost" className="w-full justify-start" onClick={() => setPaymentRequestOpen(true)}>

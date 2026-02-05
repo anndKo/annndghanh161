@@ -70,8 +70,22 @@ const TutorDashboard = () => {
   const [classes, setClasses] = useState<ClassItem[]>([]);
   const [classEnrollments, setClassEnrollments] = useState<{ [classId: string]: Enrollment[] }>({});
   const [messagingOpen, setMessagingOpen] = useState(false);
+  const [messagingReceiver, setMessagingReceiver] = useState<{ id: string; name: string } | null>(null);
   const [paymentRequestOpen, setPaymentRequestOpen] = useState(false);
   const [revenueOpen, setRevenueOpen] = useState(false);
+
+  // Listen for openMessaging event
+  useEffect(() => {
+    const handleOpenMessaging = (event: CustomEvent<{ partnerId: string; partnerName: string }>) => {
+      setMessagingReceiver({ id: event.detail.partnerId, name: event.detail.partnerName });
+      setMessagingOpen(true);
+    };
+
+    window.addEventListener('openMessaging', handleOpenMessaging as EventListener);
+    return () => {
+      window.removeEventListener('openMessaging', handleOpenMessaging as EventListener);
+    };
+  }, []);
 
   const userShortId = user?.id?.slice(0, 8).toUpperCase() || '';
 
@@ -541,7 +555,15 @@ const TutorDashboard = () => {
         </Tabs>
       </main>
 
-      <MessagingSystem open={messagingOpen} onOpenChange={setMessagingOpen} />
+      <MessagingSystem 
+        open={messagingOpen} 
+        onOpenChange={(open) => {
+          setMessagingOpen(open);
+          if (!open) setMessagingReceiver(null);
+        }}
+        defaultReceiverId={messagingReceiver?.id}
+        defaultReceiverName={messagingReceiver?.name}
+      />
       <TutorPaymentRequestDialog open={paymentRequestOpen} onOpenChange={setPaymentRequestOpen} />
       <TutorRevenueDialog open={revenueOpen} onOpenChange={setRevenueOpen} />
     </div>

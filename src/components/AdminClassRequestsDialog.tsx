@@ -13,8 +13,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { CheckCircle2, XCircle, Loader2, User, Briefcase, Clock } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, User, Briefcase, Clock, Eye, MessageSquare } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import TutorInfoDialog from './TutorInfoDialog';
 
 interface ClassRequest {
   id: string;
@@ -26,6 +27,11 @@ interface ClassRequest {
   tutor_name?: string;
   class_name?: string;
   class_display_id?: string;
+}
+
+interface TutorInfoState {
+  tutorId: string;
+  tutorName: string;
 }
 
 interface AdminClassRequestsDialogProps {
@@ -46,6 +52,22 @@ const AdminClassRequestsDialog = ({
   const [processing, setProcessing] = useState<string | null>(null);
   const [adminResponse, setAdminResponse] = useState('');
   const [selectedRequest, setSelectedRequest] = useState<ClassRequest | null>(null);
+  const [tutorInfoState, setTutorInfoState] = useState<TutorInfoState | null>(null);
+  const [tutorInfoOpen, setTutorInfoOpen] = useState(false);
+
+  const openTutorInfo = (tutorId: string, tutorName: string) => {
+    setTutorInfoState({ tutorId, tutorName });
+    setTutorInfoOpen(true);
+  };
+
+  const handleMessageTutor = async (tutorId: string, tutorName: string) => {
+    // Close the dialog and navigate to messaging
+    onOpenChange(false);
+    // Dispatch custom event to open messaging with this tutor
+    window.dispatchEvent(new CustomEvent('openMessaging', { 
+      detail: { partnerId: tutorId, partnerName: tutorName } 
+    }));
+  };
 
   useEffect(() => {
     if (open) {
@@ -319,13 +341,31 @@ const AdminClassRequestsDialog = ({
                             </div>
                           </div>
                         ) : (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setSelectedRequest(request)}
-                          >
-                            Xử lý
-                          </Button>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setSelectedRequest(request)}
+                            >
+                              Xử lý
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                          onClick={() => openTutorInfo(request.tutor_id, request.tutor_name || 'Gia sư')}
+                            >
+                          <Eye className="w-4 h-4 mr-1" />
+                              Xem chi tiết
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleMessageTutor(request.tutor_id, request.tutor_name || 'Gia sư')}
+                            >
+                              <MessageSquare className="w-4 h-4 mr-1" />
+                              Nhắn tin
+                            </Button>
+                          </div>
                         )}
                       </CardContent>
                     </Card>
@@ -362,6 +402,17 @@ const AdminClassRequestsDialog = ({
             </div>
           )}
         </ScrollArea>
+
+        {tutorInfoState && (
+          <TutorInfoDialog
+            open={tutorInfoOpen}
+            onOpenChange={setTutorInfoOpen}
+            tutorId={tutorInfoState.tutorId}
+            tutorName={tutorInfoState.tutorName}
+            avgRating={0}
+            ratingCount={0}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );

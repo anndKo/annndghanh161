@@ -220,7 +220,7 @@ const SharedClassesButton = () => {
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh]">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Briefcase className="w-5 h-5" />
@@ -231,7 +231,7 @@ const SharedClassesButton = () => {
             </DialogDescription>
           </DialogHeader>
 
-          <ScrollArea className="h-[500px] pr-4">
+          <ScrollArea className="flex-1 min-h-0 max-h-[60vh] pr-4">
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />

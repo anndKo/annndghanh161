@@ -92,6 +92,7 @@ const StudentDashboard = () => {
   const [selectedTutor, setSelectedTutor] = useState<TopTutor | null>(null);
   const [loadingData, setLoadingData] = useState(true);
   const [messagingOpen, setMessagingOpen] = useState(false);
+  const [messagingReceiver, setMessagingReceiver] = useState<{ id: string; name: string } | null>(null);
   const [ratingOpen, setRatingOpen] = useState(false);
   const [selectedClassForRating, setSelectedClassForRating] = useState<ClassItem | null>(null);
   const [enrollingClassId, setEnrollingClassId] = useState<string | null>(null);
@@ -111,6 +112,19 @@ const StudentDashboard = () => {
   const [formatFilter, setFormatFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [addressFilter, setAddressFilter] = useState('');
+
+  // Listen for openMessaging event
+  useEffect(() => {
+    const handleOpenMessaging = (event: CustomEvent<{ partnerId: string; partnerName: string }>) => {
+      setMessagingReceiver({ id: event.detail.partnerId, name: event.detail.partnerName });
+      setMessagingOpen(true);
+    };
+
+    window.addEventListener('openMessaging', handleOpenMessaging as EventListener);
+    return () => {
+      window.removeEventListener('openMessaging', handleOpenMessaging as EventListener);
+    };
+  }, []);
 
   const userShortId = user?.id?.slice(0, 8).toUpperCase() || '';
 
@@ -665,7 +679,15 @@ const StudentDashboard = () => {
         </Tabs>
       </main>
 
-      <MessagingSystem open={messagingOpen} onOpenChange={setMessagingOpen} />
+      <MessagingSystem 
+        open={messagingOpen} 
+        onOpenChange={(open) => {
+          setMessagingOpen(open);
+          if (!open) setMessagingReceiver(null);
+        }}
+        defaultReceiverId={messagingReceiver?.id}
+        defaultReceiverName={messagingReceiver?.name}
+      />
       <MessagingSystem 
         open={messageAdminOpen} 
         onOpenChange={setMessageAdminOpen} 

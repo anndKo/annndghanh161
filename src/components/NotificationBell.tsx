@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -30,20 +30,25 @@ const NotificationBell = () => {
   const [open, setOpen] = useState(false);
   const [complaintOpen, setComplaintOpen] = useState(false);
   const [complaintNotificationId, setComplaintNotificationId] = useState<string | undefined>();
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const audioInitialized = useRef(false);
-
-  // Initialize audio on first user interaction with web audio API
-  const initializeAudio = useCallback(() => {
-    if (!audioInitialized.current) {
-      audioInitialized.current = true;
-    }
-  }, []);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const canPlayAudio = useRef(false);
 
   // Play notification sound twice using simple beep with Web Audio API
   const playNotificationSound = useCallback(() => {
+    if (!canPlayAudio.current) return;
+    
     try {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      // Reuse or create AudioContext
+      if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      
+      const audioContext = audioContextRef.current;
+      
+      // Resume if suspended
+      if (audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
       
       const playBeep = (delay: number) => {
         const oscillator = audioContext.createOscillator();
@@ -73,16 +78,22 @@ const NotificationBell = () => {
   // Initialize audio on component mount and user interaction
   useEffect(() => {
     const handleInteraction = () => {
-      initializeAudio();
-      document.removeEventListener('click', handleInteraction);
+      canPlayAudio.current = true;
+      // Pre-create AudioContext on first interaction
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
     };
-    document.addEventListener('click', handleInteraction);
+    
+    // Listen to multiple events for better coverage
+    const events = ['click', 'touchstart', 'keydown'];
+    events.forEach(event => document.addEventListener(event, handleInteraction, { once: true }));
     
     return () => {
-      document.removeEventListener('click', handleInteraction);
-      audioRef.current = null;
+      events.forEach(event => document.removeEventListener(event, handleInteraction));
+      // Don't close AudioContext on unmount - it can be reused
     };
-  }, [initializeAudio]);
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -92,7 +103,7 @@ const NotificationBell = () => {
 
     // Subscribe to realtime notifications
     const notifChannel = supabase
-      .channel('notifications')
+      .channel(`notifications-${user.id}`)
       .on(
         'postgres_changes',
         {
@@ -114,7 +125,7 @@ const NotificationBell = () => {
 
     // Subscribe to new messages for real-time unread count and create notification
     const msgChannel = supabase
-      .channel('messages-unread')
+      .channel(`messages-unread-${user.id}`)
       .on(
         'postgres_changes',
         {
@@ -171,7 +182,7 @@ const NotificationBell = () => {
       supabase.removeChannel(notifChannel);
       supabase.removeChannel(msgChannel);
     };
-  }, [user]);
+  }, [user, playNotificationSound]);
 
   const fetchUnreadMessages = async () => {
     if (!user) return;

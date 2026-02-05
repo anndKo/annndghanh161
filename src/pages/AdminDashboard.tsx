@@ -274,6 +274,7 @@ const AdminDashboard = () => {
   const [selectedApp, setSelectedApp] = useState<TutorApplication | null>(null);
   const [processing, setProcessing] = useState(false);
   const [messagingOpen, setMessagingOpen] = useState(false);
+  const [messagingReceiver, setMessagingReceiver] = useState<{ id: string; name: string } | null>(null);
   const [createClassOpen, setCreateClassOpen] = useState(false);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   
@@ -300,6 +301,19 @@ const AdminDashboard = () => {
   const [attendanceStatsOpen, setAttendanceStatsOpen] = useState(false);
   const [passwordResetOpen, setPasswordResetOpen] = useState(false);
   const [classRequestsOpen, setClassRequestsOpen] = useState(false);
+
+  // Listen for openMessaging event from AdminClassRequestsDialog
+  useEffect(() => {
+    const handleOpenMessaging = (event: CustomEvent<{ partnerId: string; partnerName: string }>) => {
+      setMessagingReceiver({ id: event.detail.partnerId, name: event.detail.partnerName });
+      setMessagingOpen(true);
+    };
+
+    window.addEventListener('openMessaging', handleOpenMessaging as EventListener);
+    return () => {
+      window.removeEventListener('openMessaging', handleOpenMessaging as EventListener);
+    };
+  }, []);
   const userShortId = user?.id?.slice(0, 8).toUpperCase() || '';
 
   useEffect(() => {
@@ -1262,7 +1276,15 @@ const AdminDashboard = () => {
         </DialogContent>
       </Dialog>
 
-      <MessagingSystem open={messagingOpen} onOpenChange={setMessagingOpen} />
+      <MessagingSystem 
+        open={messagingOpen} 
+        onOpenChange={(open) => {
+          setMessagingOpen(open);
+          if (!open) setMessagingReceiver(null);
+        }}
+        defaultReceiverId={messagingReceiver?.id}
+        defaultReceiverName={messagingReceiver?.name}
+      />
       <CreateClassDialog
         open={createClassOpen}
         onOpenChange={setCreateClassOpen}

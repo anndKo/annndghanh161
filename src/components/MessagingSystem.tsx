@@ -57,6 +57,12 @@ interface Conversation {
   role?: string;
 }
 
+interface SelectedUserWithRole {
+  user_id: string;
+  full_name: string;
+  role?: string;
+}
+
 interface MessagingSystemProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -81,10 +87,7 @@ const MessagingSystem = ({
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [selectedUser, setSelectedUser] = useState<{
-    user_id: string;
-    full_name: string;
-  } | null>(null);
+  const [selectedUser, setSelectedUser] = useState<SelectedUserWithRole | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -92,7 +95,10 @@ const MessagingSystem = ({
   const [searching, setSearching] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [view, setView] = useState<'conversations' | 'chat' | 'search'>('conversations');
-  
+  // Cache for profiles and roles to speed up loading
+  const profileCache = useRef<Map<string, { full_name: string; email: string }>>(new Map());
+  const roleCache = useRef<Map<string, string>>(new Map());
+
   // Payment dialog state
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
@@ -256,33 +262,54 @@ const MessagingSystem = ({
 
     setLoading(true);
     try {
+      // Fetch all messages in a single query with limit for performance
       const { data: messagesData, error } = await supabase
         .from('messages')
         .select('*')
         .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(500);
 
       if (error) throw error;
 
-      const conversationMap = new Map<string, Conversation>();
+      // Extract unique partner IDs
+      const partnerIds = [...new Set(
+        (messagesData || []).map(msg => 
+          msg.sender_id === user.id ? msg.receiver_id : msg.sender_id
+        )
+      )];
 
+      if (partnerIds.length === 0) {
+        setConversations([]);
+        return;
+      }
+
+      // Batch fetch all profiles and roles at once (MUCH faster than individual queries)
+      const [profilesResult, rolesResult] = await Promise.all([
+        supabase.from('profiles').select('user_id, full_name, email').in('user_id', partnerIds),
+        supabase.from('user_roles').select('user_id, role').in('user_id', partnerIds)
+      ]);
+
+      // Build lookup maps and update cache
+      const profileMap = new Map<string, { full_name: string; email: string }>();
+      const roleMap = new Map<string, string>();
+
+      (profilesResult.data || []).forEach(p => {
+        profileMap.set(p.user_id, { full_name: p.full_name, email: p.email });
+        profileCache.current.set(p.user_id, { full_name: p.full_name, email: p.email });
+      });
+      (rolesResult.data || []).forEach(r => {
+        roleMap.set(r.user_id, r.role);
+        roleCache.current.set(r.user_id, r.role);
+      });
+
+      // Build conversations in single pass (no async calls inside loop)
+      const conversationMap = new Map<string, Conversation>();
       for (const msg of messagesData || []) {
         const partnerId = msg.sender_id === user.id ? msg.receiver_id : msg.sender_id;
         
         if (!conversationMap.has(partnerId)) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('user_id, full_name, email')
-            .eq('user_id', partnerId)
-            .single();
-
-          // Get user role
-          const { data: roleData } = await supabase
-            .from('user_roles')
-            .select('role')
-            .eq('user_id', partnerId)
-            .single();
-
+          const profile = profileMap.get(partnerId);
           if (profile) {
             conversationMap.set(partnerId, {
               user_id: partnerId,
@@ -291,7 +318,7 @@ const MessagingSystem = ({
               last_message: msg.content,
               unread_count: msg.receiver_id === user.id && !msg.is_read ? 1 : 0,
               last_message_time: msg.created_at,
-              role: roleData?.role || 'student',
+              role: roleMap.get(partnerId) || 'student',
             });
           }
         } else {
@@ -506,10 +533,27 @@ const MessagingSystem = ({
     await sendMessage(responseText);
   };
 
-  const handleSelectUser = (userProfile: UserProfile | Conversation) => {
+  const handleSelectUser = async (userProfile: UserProfile | Conversation) => {
+    // Get role if not already available
+    let userRole = userProfile.role;
+    if (!userRole) {
+      // Check cache first
+      userRole = roleCache.current.get(userProfile.user_id);
+      if (!userRole) {
+        const { data: roleData } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', userProfile.user_id)
+          .single();
+        userRole = roleData?.role || 'student';
+        roleCache.current.set(userProfile.user_id, userRole);
+      }
+    }
+    
     setSelectedUser({
       user_id: userProfile.user_id,
       full_name: userProfile.full_name,
+      role: userRole,
     });
     setView('chat');
     setSearchQuery('');
@@ -616,8 +660,37 @@ const MessagingSystem = ({
               {view === 'conversations' && 'Tin nhắn'}
               {view === 'search' && 'Tìm người dùng'}
               {view === 'chat' && (
-                <div>
-                  <span>{selectedUser?.full_name}</span>
+                <div 
+                  className="cursor-pointer"
+                  onClick={() => {
+                    if (selectedUser?.role === 'admin') {
+                      toast({ 
+                        title: '🔰 Admin đã xác minh', 
+                        description: 'Đây là Admin đã được hệ thống xác minh. Bạn có thể tin tưởng thông tin từ tài khoản này.' 
+                      });
+                    } else if (selectedUser?.role === 'tutor') {
+                      toast({ 
+                        title: '🎓 Gia sư đã xác minh', 
+                        description: 'Đây là Gia sư đã được hệ thống xác minh. Bạn có thể tin tưởng thông tin từ tài khoản này.' 
+                      });
+                    }
+                  }}
+                >
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded ${
+                    selectedUser?.role === 'admin' 
+                      ? 'bg-blue-900 text-white' 
+                      : selectedUser?.role === 'tutor' 
+                        ? 'bg-orange-100 text-orange-800' 
+                        : ''
+                  }`}>
+                    {selectedUser?.role === 'admin' ? 'ADMIN 🔰' : selectedUser?.full_name}
+                    {selectedUser?.role === 'tutor' && ' 🎓'}
+                  </span>
+                  {(selectedUser?.role === 'admin' || selectedUser?.role === 'tutor') && (
+                    <p className="text-xs font-normal text-muted-foreground mt-0.5">
+                      Bấm để xem xác minh
+                    </p>
+                  )}
                   <p className="text-xs font-normal text-muted-foreground">
                     ID: {selectedUser?.user_id.slice(0, 8).toUpperCase()}
                   </p>

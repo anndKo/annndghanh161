@@ -1064,6 +1064,15 @@ const AdminDashboard = () => {
                               <Button
                                 variant="ghost"
                                 size="icon"
+                                onClick={() => handleShareClass(classItem.id, classItem)}
+                                title={(classItem as any).is_shared ? "Hủy chia sẻ" : "Chia sẻ cho gia sư"}
+                                className={(classItem as any).is_shared ? "text-orange-500" : ""}
+                              >
+                                <Share2 className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
                                 onClick={() => setEditingClass(classItem)}
                                 title="Chỉnh sửa lớp"
                               >

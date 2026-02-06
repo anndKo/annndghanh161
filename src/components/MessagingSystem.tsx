@@ -396,7 +396,32 @@ const MessagingSystem = ({
         );
       });
 
-      setSearchResults(filtered.slice(0, 10));
+      const limitedResults = filtered.slice(0, 10);
+      
+      // Fetch roles for all search results to display badges
+      if (limitedResults.length > 0) {
+        const userIds = limitedResults.map(p => p.user_id);
+        const { data: rolesData } = await supabase
+          .from('user_roles')
+          .select('user_id, role')
+          .in('user_id', userIds);
+        
+        const roleMap = new Map<string, string>();
+        (rolesData || []).forEach(r => {
+          roleMap.set(r.user_id, r.role);
+          roleCache.current.set(r.user_id, r.role);
+        });
+        
+        // Add role to each result
+        const resultsWithRole = limitedResults.map(p => ({
+          ...p,
+          role: roleMap.get(p.user_id) || 'student',
+        }));
+        
+        setSearchResults(resultsWithRole);
+      } else {
+        setSearchResults([]);
+      }
     } catch (error) {
       console.error('Error searching users:', error);
     } finally {
@@ -815,25 +840,49 @@ const MessagingSystem = ({
                 </div>
               ) : (
                 <div className="divide-y divide-border">
-                  {searchResults.map((profile) => (
-                    <div
-                      key={profile.user_id}
-                      className="p-4 hover:bg-muted/50 cursor-pointer transition-colors"
-                      onClick={() => handleSelectUser(profile)}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                          <User className="w-5 h-5 text-primary" />
-                        </div>
-                        <div>
-                          <p className="font-medium">{profile.full_name}</p>
-                          <p className="text-xs text-primary font-mono">
-                            ID: {profile.user_id.slice(0, 8).toUpperCase()}
-                          </p>
+                  {searchResults.map((profile) => {
+                    const isAdmin = profile.role === 'admin';
+                    const isTutor = profile.role === 'tutor';
+                    
+                    return (
+                      <div
+                        key={profile.user_id}
+                        className="p-4 hover:bg-muted/50 cursor-pointer transition-colors"
+                        onClick={() => handleSelectUser(profile)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            isAdmin ? 'bg-blue-900 text-white' : isTutor ? 'bg-orange-100' : 'bg-primary/10'
+                          }`}>
+                            <User className={`w-5 h-5 ${isAdmin ? 'text-white' : isTutor ? 'text-orange-600' : 'text-primary'}`} />
+                          </div>
+                          <div>
+                            <div 
+                              className={`flex items-center gap-1 px-2 py-0.5 rounded ${
+                                isAdmin ? 'bg-blue-900 text-white' : isTutor ? 'bg-orange-100 text-orange-800' : ''
+                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (isAdmin) {
+                                  toast({ title: '🔰 Admin', description: 'Đây là Admin đã được kiểm duyệt' });
+                                } else if (isTutor) {
+                                  toast({ title: '🎓 Gia sư', description: 'Đây là Gia sư đã được kiểm duyệt' });
+                                }
+                              }}
+                            >
+                              <span className="font-medium">
+                                {isAdmin ? 'ADMIN 🔰' : profile.full_name}
+                              </span>
+                              {isTutor && <span>🎓</span>}
+                            </div>
+                            <p className="text-xs text-primary font-mono mt-0.5">
+                              ID: {profile.user_id.slice(0, 8).toUpperCase()}
+                            </p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

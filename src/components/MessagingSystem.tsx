@@ -161,8 +161,26 @@ const MessagingSystem = ({
       fetchConversations();
       
       if (defaultReceiverId && defaultReceiverName) {
-        setSelectedUser({ user_id: defaultReceiverId, full_name: defaultReceiverName });
-        setView('chat');
+        // Fetch role for the default receiver to show badge correctly
+        const fetchReceiverRole = async () => {
+          let receiverRole = roleCache.current.get(defaultReceiverId);
+          if (!receiverRole) {
+            const { data: roleData } = await supabase
+              .from('user_roles')
+              .select('role')
+              .eq('user_id', defaultReceiverId)
+              .single();
+            receiverRole = roleData?.role || 'student';
+            roleCache.current.set(defaultReceiverId, receiverRole);
+          }
+          setSelectedUser({ 
+            user_id: defaultReceiverId, 
+            full_name: defaultReceiverName,
+            role: receiverRole 
+          });
+          setView('chat');
+        };
+        fetchReceiverRole();
       }
     }
   }, [open, user, defaultReceiverId, defaultReceiverName]);

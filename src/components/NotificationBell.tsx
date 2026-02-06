@@ -26,16 +26,15 @@ const NotificationBell = () => {
   const { user, role } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [unreadMessages, setUnreadMessages] = useState(0);
   const [open, setOpen] = useState(false);
   const [complaintOpen, setComplaintOpen] = useState(false);
   const [complaintNotificationId, setComplaintNotificationId] = useState<string | undefined>();
-  const audioContextRef = useRef<AudioContext | null>(null);
   const canPlayAudio = useRef(false);
-  const channelsRef = useRef<{ notif: any; msg: any }>({ notif: null, msg: null });
-  const lastFetchRef = useRef<number>(0);
+  const channelRef = useRef<any>(null);
+  const messageChannelRef = useRef<any>(null);
+  const profileCacheRef = useRef<Map<string, string>>(new Map());
 
-  // Play notification sound twice using simple beep with Web Audio API
+  // Play notification sound using Web Audio API - reliable cross-browser
   const playNotificationSound = useCallback(() => {
     if (!canPlayAudio.current) {
       console.log('Audio not ready - user interaction required');
@@ -43,7 +42,6 @@ const NotificationBell = () => {
     }
     
     try {
-      // Create new AudioContext each time for better reliability
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       
       const playBeep = (delay: number) => {
@@ -71,6 +69,8 @@ const NotificationBell = () => {
       setTimeout(() => {
         audioContext.close().catch(() => {});
       }, 1000);
+      
+      console.log('🔔 Notification sound played');
     } catch (e) {
       console.error('Error playing notification sound:', e);
     }
@@ -91,34 +91,101 @@ const NotificationBell = () => {
     };
   }, []);
 
-  // Fetch initial data and set up realtime subscriptions
+  // Fetch notifications from database
+  const fetchNotifications = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(30);
+
+      if (!error && data) {
+        setNotifications(data);
+        const unread = data.filter(n => !n.is_read).length;
+        setUnreadCount(unread);
+        console.log('📬 Fetched notifications:', data.length, 'Unread:', unread);
+      }
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    }
+  }, [user]);
+
+  // Get sender name from cache or database
+  const getSenderName = useCallback(async (senderId: string): Promise<string> => {
+    // Check cache first
+    if (profileCacheRef.current.has(senderId)) {
+      return profileCacheRef.current.get(senderId)!;
+    }
+
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('user_id', senderId)
+        .single();
+      
+      const name = data?.full_name || 'Người dùng';
+      profileCacheRef.current.set(senderId, name);
+      return name;
+    } catch {
+      return 'Người dùng';
+    }
+  }, []);
+
+  // Create notification for new message
+  const createMessageNotification = useCallback(async (senderId: string, messageContent: string) => {
+    if (!user) return;
+
+    const senderName = await getSenderName(senderId);
+    
+    // Insert notification
+    const { data: newNotif, error } = await supabase
+      .from('notifications')
+      .insert({
+        user_id: user.id,
+        type: 'new_message',
+        title: 'Tin nhắn mới',
+        message: `${senderName}: ${messageContent.slice(0, 50)}${messageContent.length > 50 ? '...' : ''}`,
+        related_id: senderId,
+      })
+      .select()
+      .single();
+
+    if (!error && newNotif) {
+      console.log('✅ Created message notification:', newNotif);
+      // Add to state immediately
+      setNotifications(prev => [newNotif, ...prev]);
+      setUnreadCount(prev => prev + 1);
+      playNotificationSound();
+    } else if (error) {
+      console.error('Error creating message notification:', error);
+    }
+  }, [user, getSenderName, playNotificationSound]);
+
+  // Main effect - setup subscriptions and fetch data
   useEffect(() => {
     if (!user) return;
 
-    console.log('Setting up notification channels for user:', user.id, 'role:', role);
+    console.log('🔔 Setting up notification system for user:', user.id, 'role:', role);
 
-    const fetchData = async () => {
-      // Avoid duplicate fetches within 1 second
-      const now = Date.now();
-      if (now - lastFetchRef.current < 1000) return;
-      lastFetchRef.current = now;
+    // Fetch initial notifications
+    fetchNotifications();
 
-      await Promise.all([fetchNotifications(), fetchUnreadMessages()]);
-    };
-
-    fetchData();
-
-    // Clean up existing channels
-    if (channelsRef.current.notif) {
-      supabase.removeChannel(channelsRef.current.notif);
+    // Cleanup previous channels
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
     }
-    if (channelsRef.current.msg) {
-      supabase.removeChannel(channelsRef.current.msg);
+    if (messageChannelRef.current) {
+      supabase.removeChannel(messageChannelRef.current);
     }
 
-    // Subscribe to realtime notifications - listen for INSERT events
-    const notifChannel = supabase
-      .channel(`notif-bell-${user.id}-${Date.now()}`)
+    // Subscribe to notifications table - listen for INSERT events
+    const notificationChannel = supabase
+      .channel(`notifications-realtime-${user.id}`)
       .on(
         'postgres_changes',
         {
@@ -128,11 +195,11 @@ const NotificationBell = () => {
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          console.log('🔔 New notification received:', payload.new);
+          console.log('🔔 Realtime notification received:', payload.new);
           const newNotification = payload.new as Notification;
           
+          // Add to state - avoid duplicates
           setNotifications(prev => {
-            // Avoid duplicates
             if (prev.some(n => n.id === newNotification.id)) return prev;
             return [newNotification, ...prev];
           });
@@ -142,12 +209,12 @@ const NotificationBell = () => {
         }
       )
       .subscribe((status) => {
-        console.log('Notification channel status:', status);
+        console.log('📡 Notification channel status:', status);
       });
 
-    // Subscribe to new messages - create notification immediately
-    const msgChannel = supabase
-      .channel(`msg-bell-${user.id}-${Date.now()}`)
+    // Subscribe to messages table - create notifications for new messages
+    const messageChannel = supabase
+      .channel(`messages-notify-${user.id}`)
       .on(
         'postgres_changes',
         {
@@ -157,96 +224,30 @@ const NotificationBell = () => {
           filter: `receiver_id=eq.${user.id}`,
         },
         async (payload) => {
-          console.log('📩 New message received for notification bell:', payload.new);
-          
-          // Update unread messages count
-          setUnreadMessages(prev => prev + 1);
-          
-          // Play sound immediately
-          playNotificationSound();
-          
-          // Get sender info and create notification
+          console.log('📩 New message received:', payload.new);
           const newMsg = payload.new as { sender_id: string; content: string; id: string };
           
-          try {
-            // Get sender profile
-            const { data: senderProfile } = await supabase
-              .from('profiles')
-              .select('full_name')
-              .eq('user_id', newMsg.sender_id)
-              .single();
-            
-            const senderName = senderProfile?.full_name || 'Người dùng';
-            
-            // Create notification for new message
-            const { data: newNotif, error } = await supabase
-              .from('notifications')
-              .insert({
-                user_id: user.id,
-                type: 'new_message',
-                title: 'Tin nhắn mới',
-                message: `Bạn nhận được tin nhắn từ ${senderName}`,
-                related_id: newMsg.sender_id,
-              })
-              .select()
-              .single();
-            
-            if (error) {
-              console.error('Error creating message notification:', error);
-            } else {
-              console.log('✅ Created message notification:', newNotif);
-              // The notification INSERT will be caught by the notif channel
-              // and will update the UI automatically
-            }
-          } catch (e) {
-            console.error('Error in message notification handler:', e);
-          }
+          // Create notification for this message
+          await createMessageNotification(newMsg.sender_id, newMsg.content);
         }
       )
       .subscribe((status) => {
-        console.log('Message channel status:', status);
+        console.log('📡 Message channel status:', status);
       });
 
-    channelsRef.current = { notif: notifChannel, msg: msgChannel };
+    channelRef.current = notificationChannel;
+    messageChannelRef.current = messageChannel;
 
     return () => {
-      console.log('Cleaning up notification channels');
-      if (channelsRef.current.notif) {
-        supabase.removeChannel(channelsRef.current.notif);
+      console.log('🧹 Cleaning up notification channels');
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
       }
-      if (channelsRef.current.msg) {
-        supabase.removeChannel(channelsRef.current.msg);
+      if (messageChannelRef.current) {
+        supabase.removeChannel(messageChannelRef.current);
       }
     };
-  }, [user, role, playNotificationSound]);
-
-  const fetchUnreadMessages = async () => {
-    if (!user) return;
-
-    const { count } = await supabase
-      .from('messages')
-      .select('*', { count: 'exact', head: true })
-      .eq('receiver_id', user.id)
-      .eq('is_read', false);
-
-    setUnreadMessages(count || 0);
-  };
-
-  const fetchNotifications = async () => {
-    if (!user) return;
-
-    const { data, error } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(20);
-
-    if (!error && data) {
-      setNotifications(data);
-      setUnreadCount(data.filter(n => !n.is_read).length);
-    }
-  };
+  }, [user, role, fetchNotifications, createMessageNotification, playNotificationSound]);
 
   const markAsRead = async (id: string) => {
     await supabase
@@ -300,20 +301,18 @@ const NotificationBell = () => {
     }
   };
 
-  const totalUnread = unreadCount + unreadMessages;
-
   return (
     <>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button variant="ghost" size="icon" className="relative">
             <Bell className="w-5 h-5" />
-            {totalUnread > 0 && (
+            {unreadCount > 0 && (
               <Badge
                 variant="destructive"
                 className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
               >
-                {totalUnread > 9 ? '9+' : totalUnread}
+                {unreadCount > 9 ? '9+' : unreadCount}
               </Badge>
             )}
           </Button>

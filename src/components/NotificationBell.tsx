@@ -208,8 +208,12 @@ const NotificationBell = () => {
           playNotificationSound();
         }
       )
-      .subscribe((status) => {
-        console.log('📡 Notification channel status:', status);
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('📡 Notification channel connected');
+        } else if (err) {
+          console.log('📡 Notification channel status:', status, err);
+        }
       });
 
     // Subscribe to messages table - create notifications for new messages
@@ -231,8 +235,12 @@ const NotificationBell = () => {
           await createMessageNotification(newMsg.sender_id, newMsg.content);
         }
       )
-      .subscribe((status) => {
-        console.log('📡 Message channel status:', status);
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('📡 Message channel connected');
+        } else if (err) {
+          console.log('📡 Message channel status:', status, err);
+        }
       });
 
     channelRef.current = notificationChannel;

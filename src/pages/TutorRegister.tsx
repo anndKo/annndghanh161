@@ -35,10 +35,13 @@ const TutorRegister = () => {
   const [formData, setFormData] = useState({
     fullName: '',
     phone: '',
+    gender: '' as 'male' | 'female' | '',
     currentAddress: '',
     teachingAreas: '',
     schoolName: '',
     faculty: '',
+    educationStatus: '',
+    customEducationStatus: '',
     bestSubject: '',
     teachableSubjects: [] as string[],
     teachingFormat: 'both' as 'online' | 'offline' | 'both',
@@ -120,14 +123,20 @@ const TutorRegister = () => {
       }
       
       // Create tutor application
+      const educationStatusValue = formData.educationStatus === 'other' 
+        ? formData.customEducationStatus 
+        : formData.educationStatus;
+        
       const { error } = await supabase.from('tutor_applications').insert({
         user_id: user.id,
         full_name: formData.fullName,
         phone: formData.phone,
+        gender: formData.gender || null,
         current_address: formData.currentAddress,
         teaching_areas: formData.teachingAreas.split(',').map(s => s.trim()),
         school_name: formData.schoolName,
         faculty: formData.faculty,
+        education_status: educationStatusValue || null,
         best_subject: formData.bestSubject,
         teachable_subjects: formData.teachableSubjects,
         teaching_format: formData.teachingFormat,
@@ -214,6 +223,24 @@ const TutorRegister = () => {
                   placeholder="0909 xxx xxx"
                 />
               </div>
+              
+              <div className="space-y-3">
+                <Label>Giới tính *</Label>
+                <RadioGroup
+                  value={formData.gender}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, gender: value as 'male' | 'female' }))}
+                  className="flex gap-4"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="male" id="gender-male" />
+                    <Label htmlFor="gender-male" className="cursor-pointer">Nam</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="female" id="gender-female" />
+                    <Label htmlFor="gender-female" className="cursor-pointer">Nữ</Label>
+                  </div>
+                </RadioGroup>
+              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="currentAddress">Địa chỉ hiện tại *</Label>
@@ -268,6 +295,48 @@ const TutorRegister = () => {
                   onChange={(e) => setFormData(prev => ({ ...prev, faculty: e.target.value }))}
                   placeholder="Khoa Toán - Tin học"
                 />
+              </div>
+              
+              <div className="space-y-3">
+                <Label>Trạng thái học vấn</Label>
+                <RadioGroup
+                  value={formData.educationStatus}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, educationStatus: value }))}
+                  className="grid grid-cols-2 sm:grid-cols-3 gap-2"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="year1" id="edu-year1" />
+                    <Label htmlFor="edu-year1" className="cursor-pointer text-sm">Sinh viên năm 1</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="year2" id="edu-year2" />
+                    <Label htmlFor="edu-year2" className="cursor-pointer text-sm">Sinh viên năm 2</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="year3" id="edu-year3" />
+                    <Label htmlFor="edu-year3" className="cursor-pointer text-sm">Sinh viên năm 3</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="year4" id="edu-year4" />
+                    <Label htmlFor="edu-year4" className="cursor-pointer text-sm">Sinh viên năm 4</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="graduated" id="edu-graduated" />
+                    <Label htmlFor="edu-graduated" className="cursor-pointer text-sm">Đã tốt nghiệp</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="other" id="edu-other" />
+                    <Label htmlFor="edu-other" className="cursor-pointer text-sm">Khác</Label>
+                  </div>
+                </RadioGroup>
+                {formData.educationStatus === 'other' && (
+                  <Input
+                    placeholder="Nhập trạng thái cụ thể..."
+                    value={formData.customEducationStatus}
+                    onChange={(e) => setFormData(prev => ({ ...prev, customEducationStatus: e.target.value }))}
+                    className="mt-2"
+                  />
+                )}
               </div>
             </CardContent>
           </Card>

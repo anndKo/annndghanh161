@@ -38,6 +38,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import TrialEnrollmentBadge from '@/components/TrialEnrollmentBadge';
 import useTrialExpiration from '@/hooks/useTrialExpiration';
+import ImprovedPostCard from '@/components/ImprovedPostCard';
 
 interface ClassInfo {
   id: string;
@@ -716,34 +717,15 @@ const ClassPage = () => {
                 </CardContent>
               </Card>
             ) : (
-              <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
                 {posts.map((post) => (
-                  <Card
+                  <ImprovedPostCard
                     key={post.id}
-                    className="cursor-pointer hover:bg-muted/50 transition-colors border-2 border-primary/20 hover:border-primary/40"
-                    onClick={() => handleSelectPost(post)}
-                  >
-                    <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <CardTitle className="text-lg">{post.title}</CardTitle>
-                          <CardDescription className="flex items-center gap-2 mt-1">
-                            <Clock className="w-3 h-3" />
-                            {formatTime(post.created_at)}
-                          </CardDescription>
-                        </div>
-                        {post.files && post.files.length > 0 && (
-                          <Badge variant="outline" className="gap-1">
-                            <Paperclip className="w-3 h-3" />
-                            {post.files.length}
-                          </Badge>
-                        )}
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-muted-foreground line-clamp-2">{post.content}</p>
-                    </CardContent>
-                  </Card>
+                    post={post}
+                    onSelect={handleSelectPost}
+                    onDelete={isTutor ? handleDeletePost : undefined}
+                    isTutor={isTutor}
+                  />
                 ))}
               </div>
             )}

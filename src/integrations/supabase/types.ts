@@ -696,8 +696,10 @@ export type Database = {
           best_subject: string
           created_at: string
           current_address: string
+          education_status: string | null
           faculty: string
           full_name: string
+          gender: string | null
           id: string
           phone: string | null
           rejection_reason: string | null
@@ -716,8 +718,10 @@ export type Database = {
           best_subject: string
           created_at?: string
           current_address: string
+          education_status?: string | null
           faculty: string
           full_name: string
+          gender?: string | null
           id?: string
           phone?: string | null
           rejection_reason?: string | null
@@ -736,8 +740,10 @@ export type Database = {
           best_subject?: string
           created_at?: string
           current_address?: string
+          education_status?: string | null
           faculty?: string
           full_name?: string
+          gender?: string | null
           id?: string
           phone?: string | null
           rejection_reason?: string | null

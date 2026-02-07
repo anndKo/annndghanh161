@@ -20,6 +20,8 @@ import RealEnrollmentBadge from '@/components/RealEnrollmentBadge';
 import useEnrollmentExpiration from '@/hooks/useEnrollmentExpiration';
 import MobileMenu from '@/components/MobileMenu';
 import AttendanceCheckIn from '@/components/AttendanceCheckIn';
+import ClassFilterPanel, { FilterState } from '@/components/ClassFilterPanel';
+import StudentScheduleDialog from '@/components/StudentScheduleDialog';
 import {
   Dialog,
   DialogContent,
@@ -28,7 +30,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  GraduationCap, LogOut, BookOpen, Search, Filter, MapPin, Monitor, Users, User, Loader2, MessageCircle, Star, UserPlus, Copy, Clock, CheckCircle2, CreditCard, ClipboardList, Menu, Tag, Calendar, CalendarCheck, RefreshCw
+  GraduationCap, LogOut, BookOpen, Search, Filter, MapPin, Monitor, Users, User, Loader2, MessageCircle, Star, UserPlus, Copy, Clock, CheckCircle2, CreditCard, ClipboardList, Menu, Tag, Calendar, CalendarCheck, RefreshCw, CalendarDays
 } from 'lucide-react';
 import TutorInfoDialog from '@/components/TutorInfoDialog';
 import ReEnrollButton from '@/components/ReEnrollButton';
@@ -106,13 +108,20 @@ const StudentDashboard = () => {
   const [attendanceOpen, setAttendanceOpen] = useState(false);
   const [tutorInfoOpen, setTutorInfoOpen] = useState(false);
   const [selectedTutorForInfo, setSelectedTutorForInfo] = useState<TopTutor | null>(null);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   
   const [subjectFilter, setSubjectFilter] = useState<string>('all');
   const [gradeFilter, setGradeFilter] = useState<string>('all');
   const [formatFilter, setFormatFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [addressFilter, setAddressFilter] = useState('');
-
+  const [advancedFilters, setAdvancedFilters] = useState<FilterState>({
+    area: '',
+    startTime: '',
+    endTime: '',
+    days: [],
+    subjects: [],
+  });
   // Listen for openMessaging event
   useEffect(() => {
     const handleOpenMessaging = (event: CustomEvent<{ partnerId: string; partnerName: string }>) => {
@@ -270,6 +279,28 @@ const StudentDashboard = () => {
     if (formatFilter !== 'all' && c.teaching_format !== formatFilter) return false;
     if (searchQuery && !c.display_id?.toLowerCase().includes(searchQuery.toLowerCase()) && !c.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     if (addressFilter && c.address && !c.address.toLowerCase().includes(addressFilter.toLowerCase())) return false;
+    
+    // Advanced filters
+    if (advancedFilters.area && c.address && !c.address.toLowerCase().includes(advancedFilters.area.toLowerCase())) return false;
+    if (advancedFilters.subjects.length > 0 && !advancedFilters.subjects.includes(c.subject)) return false;
+    
+    // Filter by days
+    if (advancedFilters.days.length > 0 && c.schedule_days) {
+      try {
+        const scheduleDays = JSON.parse(c.schedule_days);
+        const hasMatchingDay = advancedFilters.days.some(day => scheduleDays[day]);
+        if (!hasMatchingDay) return false;
+      } catch (e) {
+        return false;
+      }
+    }
+    
+    // Filter by time
+    if ((advancedFilters.startTime || advancedFilters.endTime) && c.schedule_start_time && c.schedule_end_time) {
+      if (advancedFilters.startTime && c.schedule_start_time < advancedFilters.startTime) return false;
+      if (advancedFilters.endTime && c.schedule_end_time > advancedFilters.endTime) return false;
+    }
+    
     return true;
   });
 
@@ -326,6 +357,9 @@ const StudentDashboard = () => {
           {/* Desktop buttons */}
           <div className="hidden md:flex items-center gap-2">
             <NotificationBell />
+            <Button variant="ghost" size="icon" onClick={() => setScheduleOpen(true)} title="Lịch học">
+              <CalendarDays className="w-5 h-5" />
+            </Button>
             <Button variant="ghost" size="icon" onClick={() => setAttendanceOpen(true)} title="Điểm danh">
               <CalendarCheck className="w-5 h-5" />
             </Button>
@@ -343,6 +377,10 @@ const StudentDashboard = () => {
           <div className="flex md:hidden items-center gap-1">
             <NotificationBell />
             <MobileMenu title="Menu học viên">
+              <Button variant="ghost" className="w-full justify-start" onClick={() => setScheduleOpen(true)}>
+                <CalendarDays className="w-5 h-5 mr-2" />
+                Lịch học
+              </Button>
               <Button variant="ghost" className="w-full justify-start" onClick={() => setAttendanceOpen(true)}>
                 <CalendarCheck className="w-5 h-5 mr-2" />
                 Điểm danh
@@ -398,7 +436,12 @@ const StudentDashboard = () => {
                     <Label>Địa chỉ</Label>
                     <Input placeholder="Nhập địa chỉ tìm kiếm..." value={addressFilter} onChange={(e) => setAddressFilter(e.target.value)} />
                   </div>
-                  <div className="flex items-end"><Button variant="outline" className="w-full" onClick={() => { setSubjectFilter('all'); setGradeFilter('all'); setFormatFilter('all'); setSearchQuery(''); setAddressFilter(''); }}>Xóa bộ lọc</Button></div>
+                  <div className="flex items-end"><Button variant="outline" className="w-full" onClick={() => { setSubjectFilter('all'); setGradeFilter('all'); setFormatFilter('all'); setSearchQuery(''); setAddressFilter(''); setAdvancedFilters({ area: '', startTime: '', endTime: '', days: [], subjects: [] }); }}>Xóa bộ lọc</Button></div>
+                </div>
+                
+                {/* Advanced Filter Panel */}
+                <div className="mt-4">
+                  <ClassFilterPanel onFilterChange={setAdvancedFilters} />
                 </div>
               </CardContent>
             </Card>
@@ -780,6 +823,15 @@ const StudentDashboard = () => {
           tutorName={selectedTutorForInfo.full_name}
           avgRating={selectedTutorForInfo.avg_rating}
           ratingCount={selectedTutorForInfo.rating_count}
+        />
+      )}
+      
+      {/* Student Schedule Dialog */}
+      {user && (
+        <StudentScheduleDialog
+          open={scheduleOpen}
+          onOpenChange={setScheduleOpen}
+          userId={user.id}
         />
       )}
     </div>

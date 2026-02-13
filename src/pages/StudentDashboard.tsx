@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/untypedClient';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -36,6 +36,60 @@ import TutorInfoDialog from '@/components/TutorInfoDialog';
 import ReEnrollButton from '@/components/ReEnrollButton';
 
 const SUBJECTS = ['Toán', 'Vật Lý', 'Hóa Học', 'Sinh Học', 'Ngữ Văn', 'Tiếng Anh', 'Lịch Sử', 'Địa Lý', 'GDCD', 'Tin Học'];
+
+const DAY_LABELS: { [key: string]: string } = {
+  monday: 'Thứ 2', tuesday: 'Thứ 3', wednesday: 'Thứ 4', thursday: 'Thứ 5',
+  friday: 'Thứ 6', saturday: 'Thứ 7', sunday: 'CN',
+};
+
+const formatScheduleDays = (scheduleDays: string | null | undefined): string => {
+  if (!scheduleDays) return '';
+  try {
+    const days = JSON.parse(scheduleDays);
+    if (typeof days === 'object' && days !== null) {
+      return Object.keys(days).filter(d => days[d]).map(d => DAY_LABELS[d] || d).join(', ');
+    }
+    return scheduleDays;
+  } catch {
+    return scheduleDays;
+  }
+};
+
+// Component to show tutor name with stars
+const TutorNameWithStars = ({ tutorId }: { tutorId: string }) => {
+  const [tutorName, setTutorName] = useState<string>('');
+  const [avgRating, setAvgRating] = useState<number>(0);
+  const [ratingCount, setRatingCount] = useState<number>(0);
+
+  useEffect(() => {
+    const fetch = async () => {
+      const [{ data: profile }, { data: ratings }] = await Promise.all([
+        supabase.from('profiles').select('full_name').eq('user_id', tutorId).single(),
+        supabase.from('tutor_ratings').select('rating').eq('tutor_id', tutorId),
+      ]);
+      setTutorName(profile?.full_name || 'Gia sư');
+      if (ratings && ratings.length > 0) {
+        const avg = ratings.reduce((s, r) => s + r.rating, 0) / ratings.length;
+        setAvgRating(avg);
+        setRatingCount(ratings.length);
+      }
+    };
+    fetch();
+  }, [tutorId]);
+
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      <User className="w-4 h-4 text-primary" />
+      <span className="font-medium">{tutorName}</span>
+      {ratingCount > 0 && (
+        <span className="flex items-center gap-1 text-yellow-500">
+          <Star className="w-3 h-3 fill-current" />
+          <span className="text-xs">{avgRating.toFixed(1)}</span>
+        </span>
+      )}
+    </div>
+  );
+};
 const GRADES = ['Lớp 1', 'Lớp 2', 'Lớp 3', 'Lớp 4', 'Lớp 5', 'Lớp 6', 'Lớp 7', 'Lớp 8', 'Lớp 9', 'Lớp 10', 'Lớp 11', 'Lớp 12'];
 
 // Admin ID for messaging
@@ -196,12 +250,17 @@ const StudentDashboard = () => {
         .select('user_id, full_name')
         .in('user_id', tutorIds);
 
-      const topTutorsList: TopTutor[] = tutorIds.map(id => ({
-        tutor_id: id,
-        full_name: profiles?.find(p => p.user_id === id)?.full_name || 'Gia sư',
-        avg_rating: tutorRatings[id].total / tutorRatings[id].count,
-        rating_count: tutorRatings[id].count,
-      })).sort((a, b) => b.avg_rating - a.avg_rating);
+      // Filter out tutors whose profiles don't exist
+      const existingTutorIds = profiles?.map(p => p.user_id) || [];
+
+      const topTutorsList: TopTutor[] = tutorIds
+        .filter(id => existingTutorIds.includes(id))
+        .map(id => ({
+          tutor_id: id,
+          full_name: profiles?.find(p => p.user_id === id)?.full_name || 'Gia sư',
+          avg_rating: tutorRatings[id].total / tutorRatings[id].count,
+          rating_count: tutorRatings[id].count,
+        })).sort((a, b) => b.avg_rating - a.avg_rating);
 
       setTopTutors(topTutorsList.slice(0, 10));
     } catch (error) { console.error('Error fetching top tutors:', error); }
@@ -465,17 +524,23 @@ const StudentDashboard = () => {
                         </div>
                       </CardHeader>
                       <CardContent className="space-y-4">
-                        {classItem.tutor_id && <TutorStars tutorId={classItem.tutor_id} />}
+                        {classItem.tutor_id && <TutorNameWithStars tutorId={classItem.tutor_id} />}
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
                           <span className="flex items-center gap-1">{classItem.teaching_format === 'online' ? <><Monitor className="w-4 h-4" />Online</> : classItem.teaching_format === 'offline' ? <><MapPin className="w-4 h-4" />Offline</> : <><Monitor className="w-4 h-4" />Online/Offline</>}</span>
                         </div>
+                        {classItem.address && (
+                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                            <MapPin className="w-4 h-4 flex-shrink-0" />
+                            <span className="truncate">{classItem.address}</span>
+                          </div>
+                        )}
                         {/* Schedule display */}
                         {classItem.schedule_days && (
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Calendar className="w-4 h-4" />
-                            <span>{classItem.schedule_days}</span>
+                            <span>{formatScheduleDays(classItem.schedule_days)}</span>
                             {classItem.schedule_start_time && classItem.schedule_end_time && (
-                              <span>| {classItem.schedule_start_time} – {classItem.schedule_end_time}</span>
+                              <span>| {classItem.schedule_start_time?.substring(0, 5)} – {classItem.schedule_end_time?.substring(0, 5)}</span>
                             )}
                           </div>
                         )}
@@ -544,9 +609,9 @@ const StudentDashboard = () => {
                           {enrollment.classes.schedule_days && (
                             <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
                               <Calendar className="w-3 h-3 flex-shrink-0" />
-                              <span>{enrollment.classes.schedule_days}</span>
+                              <span>{formatScheduleDays(enrollment.classes.schedule_days)}</span>
                               {enrollment.classes.schedule_start_time && enrollment.classes.schedule_end_time && (
-                                <span>| {enrollment.classes.schedule_start_time} – {enrollment.classes.schedule_end_time}</span>
+                                <span>| {enrollment.classes.schedule_start_time?.substring(0, 5)} – {enrollment.classes.schedule_end_time?.substring(0, 5)}</span>
                               )}
                             </p>
                           )}
@@ -556,7 +621,7 @@ const StudentDashboard = () => {
                               <span className="truncate">{enrollment.classes.address}</span>
                             </p>
                           )}
-                          {enrollment.classes.tutor_id && <TutorStars tutorId={enrollment.classes.tutor_id} />}
+                          {enrollment.classes.tutor_id && <TutorNameWithStars tutorId={enrollment.classes.tutor_id} />}
                         </div>
                         <div className="flex gap-2 flex-shrink-0">
                           <Button size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/class/${enrollment.class_id}`); }}>Vào lớp</Button>

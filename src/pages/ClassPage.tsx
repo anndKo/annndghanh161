@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/untypedClient';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -383,7 +383,7 @@ const ClassPage = () => {
         .select('user_id, full_name')
         .in('user_id', senderIds);
 
-      const nameMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) || []);
+      const nameMap = new Map<string, string>(profiles?.map((p: any) => [p.user_id, p.full_name]) || []);
       setSenderNames(nameMap);
 
       const messagesWithNames = data.map(m => ({

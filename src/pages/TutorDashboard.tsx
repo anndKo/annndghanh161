@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/untypedClient';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -33,6 +33,24 @@ import {
   Briefcase,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+
+const DAY_LABELS: { [key: string]: string } = {
+  monday: 'Thứ 2', tuesday: 'Thứ 3', wednesday: 'Thứ 4', thursday: 'Thứ 5',
+  friday: 'Thứ 6', saturday: 'Thứ 7', sunday: 'CN',
+};
+
+const formatScheduleDays = (scheduleDays: string | null | undefined): string => {
+  if (!scheduleDays) return '';
+  try {
+    const days = JSON.parse(scheduleDays);
+    if (typeof days === 'object' && days !== null) {
+      return Object.keys(days).filter(d => days[d]).map(d => DAY_LABELS[d] || d).join(', ');
+    }
+    return scheduleDays;
+  } catch {
+    return scheduleDays;
+  }
+};
 
 interface ClassItem {
   id: string;
@@ -473,7 +491,7 @@ const TutorDashboard = () => {
                           {classItem.schedule_days && classItem.schedule_start_time && (
                             <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
                               <Clock className="w-3 h-3" />
-                              {classItem.schedule_days} | {classItem.schedule_start_time?.slice(0, 5)} - {classItem.schedule_end_time?.slice(0, 5)}
+                              {formatScheduleDays(classItem.schedule_days)} | {classItem.schedule_start_time?.slice(0, 5)} - {classItem.schedule_end_time?.slice(0, 5)}
                             </div>
                           )}
                           <div className="flex items-center justify-between mb-2">

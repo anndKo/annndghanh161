@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/untypedClient';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -868,7 +868,10 @@ const AdminDashboard = () => {
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="applications" className="space-y-6">
+        <Tabs defaultValue="applications" className="space-y-6" onValueChange={(val) => {
+          if (val === 'class-requests') setClassRequestsOpen(true);
+          if (val === 'attendance') setAttendanceStatsOpen(true);
+        }}>
           <TabsList className="flex-wrap h-auto gap-1">
             <TabsTrigger value="applications" className="flex items-center gap-2">
               <Users className="w-4 h-4" />
@@ -883,6 +886,14 @@ const AdminDashboard = () => {
             <TabsTrigger value="classes" className="flex items-center gap-2">
               <BookOpen className="w-4 h-4" />
               Lớp học
+            </TabsTrigger>
+            <TabsTrigger value="class-requests" className="flex items-center gap-2">
+              <Briefcase className="w-4 h-4" />
+              Yêu cầu nhận lớp
+            </TabsTrigger>
+            <TabsTrigger value="attendance" className="flex items-center gap-2">
+              <CalendarCheck className="w-4 h-4" />
+              Thống kê điểm danh
             </TabsTrigger>
           </TabsList>
 

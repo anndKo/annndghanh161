@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/untypedClient';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -78,7 +78,7 @@ const AdminClassRequestsDialog = ({
   const fetchRequests = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('class_requests')
         .select('*')
         .order('created_at', { ascending: false });
@@ -89,12 +89,12 @@ const AdminClassRequestsDialog = ({
       const tutorIds = [...new Set(data?.map(r => r.tutor_id) || [])];
       const classIds = [...new Set(data?.map(r => r.class_id) || [])];
 
-      const { data: profiles } = await supabase
+      const { data: profiles } = await (supabase as any)
         .from('profiles')
         .select('user_id, full_name')
         .in('user_id', tutorIds);
 
-      const { data: classes } = await supabase
+      const { data: classes } = await (supabase as any)
         .from('classes')
         .select('id, name, display_id')
         .in('id', classIds);
@@ -118,7 +118,7 @@ const AdminClassRequestsDialog = ({
     setProcessing(request.id);
     try {
       // Update request status
-      const { error: requestError } = await supabase
+      const { error: requestError } = await (supabase as any)
         .from('class_requests')
         .update({ 
           status: 'approved',
@@ -129,7 +129,7 @@ const AdminClassRequestsDialog = ({
       if (requestError) throw requestError;
 
       // Assign tutor to class
-      const { error: classError } = await supabase
+      const { error: classError } = await (supabase as any)
         .from('classes')
         .update({ 
           tutor_id: request.tutor_id,
@@ -140,7 +140,7 @@ const AdminClassRequestsDialog = ({
       if (classError) throw classError;
 
       // Reject other pending requests for the same class
-      await supabase
+      await (supabase as any)
         .from('class_requests')
         .update({ 
           status: 'rejected',
@@ -151,7 +151,7 @@ const AdminClassRequestsDialog = ({
         .neq('id', request.id);
 
       // Notify tutor
-      await supabase.from('notifications').insert({
+      await (supabase as any).from('notifications').insert({
         user_id: request.tutor_id,
         type: 'class_request_approved',
         title: 'Yêu cầu nhận lớp được duyệt',
@@ -182,7 +182,7 @@ const AdminClassRequestsDialog = ({
   const handleReject = async (request: ClassRequest) => {
     setProcessing(request.id);
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('class_requests')
         .update({ 
           status: 'rejected',
@@ -193,7 +193,7 @@ const AdminClassRequestsDialog = ({
       if (error) throw error;
 
       // Notify tutor
-      await supabase.from('notifications').insert({
+      await (supabase as any).from('notifications').insert({
         user_id: request.tutor_id,
         type: 'class_request_rejected',
         title: 'Yêu cầu nhận lớp bị từ chối',

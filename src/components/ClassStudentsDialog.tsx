@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/untypedClient';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -99,8 +99,8 @@ const ClassStudentsDialog = ({
         .select('user_id, full_name, email')
         .in('user_id', studentIds);
 
-      const profileMap = new Map(
-        profiles?.map((p) => [p.user_id, { full_name: p.full_name, email: p.email }]) || []
+      const profileMap = new Map<string, { full_name: string; email: string }>(
+        profiles?.map((p: any) => [p.user_id, { full_name: p.full_name, email: p.email }]) || []
       );
 
       const enrichedStudents: Student[] = (enrollments || []).map((e) => ({

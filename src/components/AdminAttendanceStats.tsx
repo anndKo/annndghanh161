@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/untypedClient';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
@@ -62,7 +62,7 @@ const AdminAttendanceStats = ({ open, onOpenChange }: AdminAttendanceStatsProps)
   const fetchClasses = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('classes')
         .select('id, name, display_id, tutor_id')
         .eq('is_active', true)
@@ -75,7 +75,7 @@ const AdminAttendanceStats = ({ open, onOpenChange }: AdminAttendanceStatsProps)
         (data || []).map(async (c) => {
           let tutorName = 'Chưa có';
           if (c.tutor_id) {
-            const { data: profile } = await supabase
+            const { data: profile } = await (supabase as any)
               .from('profiles')
               .select('full_name')
               .eq('user_id', c.tutor_id)
@@ -97,7 +97,7 @@ const AdminAttendanceStats = ({ open, onOpenChange }: AdminAttendanceStatsProps)
   const fetchAttendance = async (classId: string) => {
     setLoadingAttendance(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('attendance')
         .select('*')
         .eq('class_id', classId)
@@ -107,7 +107,7 @@ const AdminAttendanceStats = ({ open, onOpenChange }: AdminAttendanceStatsProps)
 
       // Get student names and class info
       const studentIds = [...new Set(data?.map(a => a.student_id) || [])];
-      const { data: profiles } = await supabase
+      const { data: profiles } = await (supabase as any)
         .from('profiles')
         .select('user_id, full_name')
         .in('user_id', studentIds);

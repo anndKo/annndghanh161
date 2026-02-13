@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/untypedClient';
 
 // Hook to check and update expired trial AND real enrollments
 // Also sends warning notifications when enrollment is about to expire

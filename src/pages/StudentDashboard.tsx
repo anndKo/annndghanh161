@@ -55,32 +55,40 @@ const formatScheduleDays = (scheduleDays: string | null | undefined): string => 
   }
 };
 
-// Component to show tutor name with stars
+// Component to show tutor name with stars and verification badge
 const TutorNameWithStars = ({ tutorId }: { tutorId: string }) => {
   const [tutorName, setTutorName] = useState<string>('');
   const [avgRating, setAvgRating] = useState<number>(0);
   const [ratingCount, setRatingCount] = useState<number>(0);
+  const [isVerified, setIsVerified] = useState(false);
 
   useEffect(() => {
-    const fetch = async () => {
-      const [{ data: profile }, { data: ratings }] = await Promise.all([
+    const fetchData = async () => {
+      const [{ data: profile }, { data: ratings }, { data: application }] = await Promise.all([
         supabase.from('profiles').select('full_name').eq('user_id', tutorId).single(),
         supabase.from('tutor_ratings').select('rating').eq('tutor_id', tutorId),
+        supabase.from('tutor_applications').select('status').eq('user_id', tutorId).eq('status', 'approved').maybeSingle(),
       ]);
       setTutorName(profile?.full_name || 'Gia sư');
+      setIsVerified(!!application);
       if (ratings && ratings.length > 0) {
-        const avg = ratings.reduce((s, r) => s + r.rating, 0) / ratings.length;
+        const avg = ratings.reduce((s: number, r: any) => s + r.rating, 0) / ratings.length;
         setAvgRating(avg);
         setRatingCount(ratings.length);
       }
     };
-    fetch();
+    fetchData();
   }, [tutorId]);
 
   return (
-    <div className="flex items-center gap-2 text-sm">
+    <div className="flex items-center gap-2 text-sm flex-wrap">
       <User className="w-4 h-4 text-primary" />
       <span className="font-medium">{tutorName}</span>
+      {isVerified && (
+        <Badge className="bg-emerald-500 text-white text-[10px] px-1.5 py-0">
+          <CheckCircle2 className="w-3 h-3 mr-0.5" />Đã xác minh
+        </Badge>
+      )}
       {ratingCount > 0 && (
         <span className="flex items-center gap-1 text-yellow-500">
           <Star className="w-3 h-3 fill-current" />
@@ -197,9 +205,8 @@ const StudentDashboard = () => {
 
   useEffect(() => {
     if (user) { 
-      fetchClasses(); 
-      fetchEnrollments(); 
-      fetchTopTutors();
+      // Fetch all data in parallel for better performance
+      Promise.all([fetchClasses(), fetchEnrollments(), fetchTopTutors()]);
     }
   }, [user]);
 

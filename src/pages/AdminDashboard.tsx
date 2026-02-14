@@ -725,7 +725,7 @@ const AdminDashboard = () => {
       case 'pending':
         return <Badge variant="outline" className="text-warning border-warning"><Clock className="w-3 h-3 mr-1" />Chờ duyệt</Badge>;
       case 'approved':
-        return <Badge className="bg-success"><CheckCircle2 className="w-3 h-3 mr-1" />Đã duyệt</Badge>;
+        return <Badge className="bg-emerald-500 text-white"><CheckCircle2 className="w-3 h-3 mr-1" />Đã xác minh</Badge>;
       case 'rejected':
         return <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" />Từ chối</Badge>;
       default:

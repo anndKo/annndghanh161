@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Star, BookOpen, GraduationCap, MapPin, Monitor, Users, User, Loader2 } from 'lucide-react';
+import { Star, BookOpen, GraduationCap, MapPin, Monitor, Users, User, Loader2, CheckCircle2 } from 'lucide-react';
 
 interface TutorApplication {
   full_name: string;
@@ -119,7 +119,14 @@ const TutorInfoDialog = ({
               {tutorName.charAt(0).toUpperCase()}
             </div>
             <div>
-              <span>{tutorName}</span>
+              <div className="flex items-center gap-2">
+                <span>{tutorName}</span>
+                {tutorInfo && (
+                  <Badge className="bg-emerald-500 text-white text-[10px] px-1.5 py-0">
+                    <CheckCircle2 className="w-3 h-3 mr-0.5" />Đã xác minh
+                  </Badge>
+                )}
+              </div>
               <div className="flex items-center gap-1 text-yellow-500 text-sm font-normal">
                 <Star className="w-4 h-4 fill-current" />
                 <span>{avgRating.toFixed(1)}</span>

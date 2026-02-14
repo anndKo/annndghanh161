@@ -237,21 +237,7 @@ const MessagingSystem = ({
               
               if (newMsg.sender_id !== user.id) {
                 playNotificationSound();
-                
-                // Create notification for new message
-                (async () => {
-                  try {
-                    await supabase.from('notifications').insert({
-                      user_id: user.id,
-                      type: 'new_message',
-                      title: 'Tin nhắn mới',
-                      message: `${selectedUser.full_name} đã gửi tin nhắn cho bạn`,
-                      related_id: newMsg.sender_id,
-                    });
-                  } catch (e) {
-                    console.error('Error creating notification:', e);
-                  }
-                })();
+                // Notification is handled by NotificationBell's message channel
               }
             }
           }

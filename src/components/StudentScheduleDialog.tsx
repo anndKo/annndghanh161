@@ -59,33 +59,38 @@ const StudentScheduleDialog = ({ open, onOpenChange, userId }: StudentScheduleDi
 
       if (error) throw error;
 
-      // Get tutor names for each class
-      const classesWithTutor: ScheduleClass[] = [];
+      // Collect all tutor IDs first, then batch fetch
+      const classesData: any[] = [];
+      const tutorIds: string[] = [];
       
       for (const enrollment of enrollments || []) {
         const classData = enrollment.classes as any;
         if (!classData) continue;
-        
-        let tutorName = 'Chưa có gia sư';
-        if (classData.tutor_id) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('full_name')
-            .eq('user_id', classData.tutor_id)
-            .single();
-          if (profile) tutorName = profile.full_name;
+        classesData.push(classData);
+        if (classData.tutor_id && !tutorIds.includes(classData.tutor_id)) {
+          tutorIds.push(classData.tutor_id);
         }
-        
-        classesWithTutor.push({
-          id: classData.id,
-          name: classData.name,
-          subject: classData.subject,
-          schedule_days: classData.schedule_days,
-          schedule_start_time: classData.schedule_start_time,
-          schedule_end_time: classData.schedule_end_time,
-          tutor_name: tutorName,
-        });
       }
+
+      // Batch fetch all tutor names at once
+      let tutorMap = new Map<string, string>();
+      if (tutorIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id, full_name')
+          .in('user_id', tutorIds);
+        (profiles || []).forEach((p: any) => tutorMap.set(p.user_id, p.full_name));
+      }
+
+      const classesWithTutor: ScheduleClass[] = classesData.map(classData => ({
+        id: classData.id,
+        name: classData.name,
+        subject: classData.subject,
+        schedule_days: classData.schedule_days,
+        schedule_start_time: classData.schedule_start_time,
+        schedule_end_time: classData.schedule_end_time,
+        tutor_name: classData.tutor_id ? (tutorMap.get(classData.tutor_id) || 'Gia sư') : 'Chưa có gia sư',
+      }));
 
       // Group classes by day
       const scheduleMap = new Map<string, ScheduleClass[]>();
@@ -94,14 +99,30 @@ const StudentScheduleDialog = ({ open, onOpenChange, userId }: StudentScheduleDi
       classesWithTutor.forEach(cls => {
         if (cls.schedule_days) {
           try {
-            const days = JSON.parse(cls.schedule_days);
-            Object.keys(days).forEach(day => {
-              if (days[day]) {
-                const existing = scheduleMap.get(day) || [];
-                existing.push(cls);
-                scheduleMap.set(day, existing);
+            // Support both JSON object and string formats
+            let days: any;
+            if (typeof cls.schedule_days === 'string') {
+              try {
+                days = JSON.parse(cls.schedule_days);
+              } catch {
+                // Maybe it's a comma-separated string like "monday,wednesday"
+                const dayList = cls.schedule_days.split(',').map(d => d.trim().toLowerCase());
+                days = {};
+                dayList.forEach(d => { days[d] = true; });
               }
-            });
+            } else {
+              days = cls.schedule_days;
+            }
+            
+            if (typeof days === 'object' && days !== null) {
+              Object.keys(days).forEach(day => {
+                if (days[day]) {
+                  const existing = scheduleMap.get(day) || [];
+                  existing.push(cls);
+                  scheduleMap.set(day, existing);
+                }
+              });
+            }
           } catch (e) {
             console.error('Error parsing schedule_days:', e);
           }

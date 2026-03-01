@@ -13,7 +13,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { CheckCircle2, XCircle, Loader2, User, Briefcase, Clock, Eye, MessageSquare } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, User, Briefcase, Clock, Eye, MessageSquare, Search } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import TutorInfoDialog from './TutorInfoDialog';
 
@@ -54,6 +55,7 @@ const AdminClassRequestsDialog = ({
   const [selectedRequest, setSelectedRequest] = useState<ClassRequest | null>(null);
   const [tutorInfoState, setTutorInfoState] = useState<TutorInfoState | null>(null);
   const [tutorInfoOpen, setTutorInfoOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const openTutorInfo = (tutorId: string, tutorName: string) => {
     setTutorInfoState({ tutorId, tutorName });
@@ -224,8 +226,18 @@ const AdminClassRequestsDialog = ({
     return new Date(dateStr).toLocaleString('vi-VN');
   };
 
-  const pendingRequests = requests.filter(r => r.status === 'pending');
-  const processedRequests = requests.filter(r => r.status !== 'pending');
+  const filteredRequests = requests.filter(r => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      r.class_display_id?.toLowerCase().includes(q) ||
+      r.class_name?.toLowerCase().includes(q) ||
+      r.tutor_name?.toLowerCase().includes(q)
+    );
+  });
+
+  const pendingRequests = filteredRequests.filter(r => r.status === 'pending');
+  const processedRequests = filteredRequests.filter(r => r.status !== 'pending');
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -243,7 +255,18 @@ const AdminClassRequestsDialog = ({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="h-[500px] pr-4">
+        {/* Search */}
+        <div className="relative mb-3">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Tìm theo mã lớp, tên lớp, tên gia sư..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+
+        <ScrollArea className="h-[450px] pr-4">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />

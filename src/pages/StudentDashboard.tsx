@@ -510,7 +510,7 @@ const StudentDashboard = () => {
                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                     <div className="space-y-2 md:col-span-2">
                       <Label>Tìm kiếm</Label>
-                      <Input placeholder="Tìm mã lớp, tên lớp, địa chỉ..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                      <Input placeholder="Tìm theo địa chỉ, mã lớp, tên lớp..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                     </div>
                     <div className="space-y-2"><Label>Môn học</Label><Select value={subjectFilter} onValueChange={setSubjectFilter}><SelectTrigger><SelectValue placeholder="Tất cả môn" /></SelectTrigger><SelectContent><SelectItem value="all">Tất cả môn</SelectItem>{SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
                     <div className="space-y-2"><Label>Lớp</Label><Select value={gradeFilter} onValueChange={setGradeFilter}><SelectTrigger><SelectValue placeholder="Tất cả lớp" /></SelectTrigger><SelectContent><SelectItem value="all">Tất cả lớp</SelectItem>{GRADES.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}</SelectContent></Select></div>

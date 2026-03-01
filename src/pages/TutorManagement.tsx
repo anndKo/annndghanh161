@@ -58,6 +58,7 @@ interface Tutor {
   school_name: string;
   teachable_subjects: string[];
   status: string;
+  last_payment_date?: string | null;
 }
 
 interface PaymentRequest {
@@ -153,7 +154,24 @@ const TutorManagement = () => {
         .order('full_name');
 
       if (error) throw error;
-      setTutors(data || []);
+
+      // Fetch last payment date for each tutor
+      const tutorIds = data?.map(t => t.user_id) || [];
+      const tutorsWithPayment = await Promise.all(
+        (data || []).map(async (tutor) => {
+          const { data: lastPayment } = await supabase
+            .from('tutor_revenue')
+            .select('created_at')
+            .eq('tutor_id', tutor.user_id)
+            .lt('amount', 0)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          return { ...tutor, last_payment_date: lastPayment?.created_at || null };
+        })
+      );
+
+      setTutors(tutorsWithPayment);
     } catch (error) {
       console.error('Error fetching tutors:', error);
     } finally {
@@ -659,6 +677,12 @@ const TutorManagement = () => {
                         className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border border-border rounded-lg gap-4"
                       >
                         <div className="flex-1">
+                          {tutor.last_payment_date && (
+                            <div className="text-xs text-success bg-success/10 px-2 py-1 rounded-md mb-2 inline-flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Thanh toán gần nhất: {formatDate(tutor.last_payment_date)}
+                            </div>
+                          )}
                           <h3 className="font-semibold">{tutor.full_name}</h3>
                           <p className="text-xs text-muted-foreground font-mono">ID: {tutor.user_id.slice(0, 8).toUpperCase()}</p>
                           <p className="text-sm text-muted-foreground">{tutor.school_name}</p>
@@ -666,7 +690,7 @@ const TutorManagement = () => {
                             Môn dạy: {tutor.teachable_subjects.join(', ')}
                           </p>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
                           <Button
                             size="sm"
                             variant="outline"
@@ -674,6 +698,17 @@ const TutorManagement = () => {
                           >
                             <Banknote className="w-4 h-4 mr-1" />
                             Thanh toán
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              fetchTutorDetails(tutor);
+                              // Will open the payment history dialog
+                            }}
+                          >
+                            <Clock className="w-4 h-4 mr-1" />
+                            Lịch sử TT
                           </Button>
                           <Button
                             size="sm"

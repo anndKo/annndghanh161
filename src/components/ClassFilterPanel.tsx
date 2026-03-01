@@ -8,7 +8,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { Filter, ChevronDown, ChevronUp, MapPin, Clock, Calendar, BookOpen, X } from 'lucide-react';
+import { Filter, ChevronDown, ChevronUp, Clock, Calendar, BookOpen, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 const SUBJECTS = ['Toán', 'Vật Lý', 'Hóa Học', 'Sinh Học', 'Ngữ Văn', 'Tiếng Anh', 'Lịch Sử', 'Địa Lý', 'GDCD', 'Tin Học'];
@@ -28,7 +28,6 @@ interface ClassFilterPanelProps {
 }
 
 export interface FilterState {
-  area: string;
   startTime: string;
   endTime: string;
   days: string[];
@@ -38,7 +37,6 @@ export interface FilterState {
 const ClassFilterPanel = ({ onFilterChange }: ClassFilterPanelProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [filters, setFilters] = useState<FilterState>({
-    area: '',
     startTime: '',
     endTime: '',
     days: [],
@@ -67,7 +65,6 @@ const ClassFilterPanel = ({ onFilterChange }: ClassFilterPanelProps) => {
 
   const clearFilters = () => {
     const emptyFilters: FilterState = {
-      area: '',
       startTime: '',
       endTime: '',
       days: [],
@@ -77,7 +74,7 @@ const ClassFilterPanel = ({ onFilterChange }: ClassFilterPanelProps) => {
     onFilterChange(emptyFilters);
   };
 
-  const hasActiveFilters = filters.area || filters.startTime || filters.endTime || 
+  const hasActiveFilters = filters.startTime || filters.endTime || 
     filters.days.length > 0 || filters.subjects.length > 0;
 
   return (
@@ -89,7 +86,7 @@ const ClassFilterPanel = ({ onFilterChange }: ClassFilterPanelProps) => {
             Bộ lọc nâng cao
             {hasActiveFilters && (
               <Badge variant="secondary" className="ml-1">
-                {(filters.area ? 1 : 0) + (filters.startTime ? 1 : 0) + filters.days.length + filters.subjects.length}
+                {(filters.startTime ? 1 : 0) + filters.days.length + filters.subjects.length}
               </Badge>
             )}
             {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -104,20 +101,7 @@ const ClassFilterPanel = ({ onFilterChange }: ClassFilterPanelProps) => {
       </div>
 
       <CollapsibleContent className="mt-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 border rounded-lg bg-muted/30">
-          {/* Khu vực */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-primary" />
-              Khu vực
-            </Label>
-            <Input
-              placeholder="Nhập quận/huyện, tỉnh/TP..."
-              value={filters.area}
-              onChange={(e) => updateFilter('area', e.target.value)}
-            />
-          </div>
-
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg bg-muted/30">
           {/* Thời gian học */}
           <div className="space-y-2">
             <Label className="flex items-center gap-2">

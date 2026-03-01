@@ -56,14 +56,19 @@ const ForgotPasswordDialog = ({ open, onOpenChange }: ForgotPasswordDialogProps)
 
       if (error) throw error;
 
-      // Send notification to admin
-      const ADMIN_ID = 'd8485baa-9af4-44e4-bf84-850fad8e7034';
-      await supabase.from('notifications').insert({
-        user_id: ADMIN_ID,
-        type: 'password_reset_request',
-        title: 'Yêu cầu đặt lại mật khẩu',
-        message: `${validated.fullName} yêu cầu đặt lại mật khẩu cho email ${validated.email}`,
-      });
+      // Try to send notification to admin (may fail if user is not authenticated, that's ok)
+      try {
+        const ADMIN_ID = 'd8485baa-9af4-44e4-bf84-850fad8e7034';
+        await supabase.from('notifications').insert({
+          user_id: ADMIN_ID,
+          type: 'password_reset_request',
+          title: 'Yêu cầu đặt lại mật khẩu',
+          message: `${validated.fullName} yêu cầu đặt lại mật khẩu cho email ${validated.email}`,
+        });
+      } catch (notifError) {
+        // Notification to admin may fail for unauthenticated users, ignore
+        console.log('Could not send admin notification:', notifError);
+      }
 
       toast({
         title: 'Đã gửi yêu cầu',

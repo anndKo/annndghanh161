@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/untypedClient';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
@@ -18,7 +20,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Check, X, Phone, Mail, Clock, User, RefreshCw } from 'lucide-react';
+import { Loader2, Check, X, Phone, Mail, Clock, User, RefreshCw, KeyRound } from 'lucide-react';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 
@@ -43,7 +45,8 @@ const AdminPasswordResetRequests = ({ open, onOpenChange }: AdminPasswordResetRe
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<PasswordResetRequest[]>([]);
   const [processingId, setProcessingId] = useState<string | null>(null);
-  const [responseText, setResponseText] = useState<Record<string, string>>({});
+  const [newPasswords, setNewPasswords] = useState<Record<string, string>>({});
+  const [changingPasswordId, setChangingPasswordId] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -68,22 +71,76 @@ const AdminPasswordResetRequests = ({ open, onOpenChange }: AdminPasswordResetRe
     }
   };
 
-  const handleUpdateStatus = async (requestId: string, status: 'resolved' | 'rejected') => {
+  const handleChangePassword = async (request: PasswordResetRequest) => {
+    const newPassword = newPasswords[request.id];
+    if (!newPassword || newPassword.length < 6) {
+      toast({
+        variant: 'destructive',
+        title: 'Lỗi',
+        description: 'Mật khẩu mới phải có ít nhất 6 ký tự',
+      });
+      return;
+    }
+
+    setProcessingId(request.id);
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-reset-password`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.session?.access_token}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({
+            email: request.email,
+            new_password: newPassword,
+            request_id: request.id,
+          }),
+        }
+      );
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Failed');
+
+      toast({
+        title: 'Đã đổi mật khẩu',
+        description: `Mật khẩu của ${request.full_name} đã được cập nhật`,
+      });
+
+      setNewPasswords(prev => {
+        const copy = { ...prev };
+        delete copy[request.id];
+        return copy;
+      });
+      setChangingPasswordId(null);
+      fetchRequests();
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Lỗi',
+        description: error.message || 'Không thể đổi mật khẩu',
+      });
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleReject = async (requestId: string) => {
     setProcessingId(requestId);
     try {
       const { error } = await supabase
         .from('password_reset_requests')
-        .update({
-          status,
-          admin_response: responseText[requestId] || null,
-        })
+        .update({ status: 'rejected' })
         .eq('id', requestId);
 
       if (error) throw error;
 
       toast({
-        title: status === 'resolved' ? 'Đã xử lý' : 'Đã từ chối',
-        description: 'Yêu cầu đã được cập nhật',
+        title: 'Đã từ chối',
+        description: 'Yêu cầu đã bị từ chối',
       });
 
       fetchRequests();
@@ -141,7 +198,6 @@ const AdminPasswordResetRequests = ({ open, onOpenChange }: AdminPasswordResetRe
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Pending Requests */}
             {pendingRequests.length > 0 && (
               <div>
                 <h4 className="font-semibold mb-3">Chờ xử lý ({pendingRequests.length})</h4>
@@ -175,35 +231,65 @@ const AdminPasswordResetRequests = ({ open, onOpenChange }: AdminPasswordResetRe
                           {request.content}
                         </div>
                         <div className="space-y-2">
-                          <Textarea
-                            placeholder="Ghi chú xử lý (không bắt buộc)..."
-                            value={responseText[request.id] || ''}
-                            onChange={(e) => setResponseText(prev => ({ ...prev, [request.id]: e.target.value }))}
-                            rows={2}
-                          />
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              onClick={() => handleUpdateStatus(request.id, 'resolved')}
-                              disabled={processingId === request.id}
-                            >
-                              {processingId === request.id ? (
-                                <Loader2 className="w-4 h-4 animate-spin mr-1" />
-                              ) : (
-                                <Check className="w-4 h-4 mr-1" />
-                              )}
-                              Đã xử lý
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleUpdateStatus(request.id, 'rejected')}
-                              disabled={processingId === request.id}
-                            >
-                              <X className="w-4 h-4 mr-1" />
-                              Từ chối
-                            </Button>
-                          </div>
+                          {changingPasswordId === request.id ? (
+                            <div className="space-y-2">
+                              <Label className="flex items-center gap-1 text-sm">
+                                <KeyRound className="w-3 h-3" />
+                                Mật khẩu mới
+                              </Label>
+                              <Input
+                                type="text"
+                                placeholder="Nhập mật khẩu mới (ít nhất 6 ký tự)..."
+                                value={newPasswords[request.id] || ''}
+                                onChange={(e) => setNewPasswords(prev => ({ ...prev, [request.id]: e.target.value }))}
+                              />
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleChangePassword(request)}
+                                  disabled={processingId === request.id}
+                                >
+                                  {processingId === request.id ? (
+                                    <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                                  ) : (
+                                    <Check className="w-4 h-4 mr-1" />
+                                  )}
+                                  Xác nhận đổi
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => setChangingPasswordId(null)}
+                                >
+                                  Hủy
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => setChangingPasswordId(request.id)}
+                                disabled={processingId === request.id}
+                              >
+                                <KeyRound className="w-4 h-4 mr-1" />
+                                Đổi mật khẩu
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleReject(request.id)}
+                                disabled={processingId === request.id}
+                              >
+                                {processingId === request.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                                ) : (
+                                  <X className="w-4 h-4 mr-1" />
+                                )}
+                                Từ chối
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -212,7 +298,6 @@ const AdminPasswordResetRequests = ({ open, onOpenChange }: AdminPasswordResetRe
               </div>
             )}
 
-            {/* Processed Requests */}
             {processedRequests.length > 0 && (
               <div>
                 <h4 className="font-semibold mb-3">Đã xử lý ({processedRequests.length})</h4>

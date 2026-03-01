@@ -50,6 +50,7 @@ const AdminEnrollmentRequestDialog = ({
   const [classes, setClasses] = useState<ClassItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [classSearch, setClassSearch] = useState('');
   
   // Trial form state
   const [trialClassId, setTrialClassId] = useState('');
@@ -271,18 +272,30 @@ const AdminEnrollmentRequestDialog = ({
               ) : classes.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Chưa có lớp nào</p>
               ) : (
-                <Select value={trialClassId} onValueChange={handleTrialClassChange}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Chọn lớp học" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {classes.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.display_id || c.id.slice(0, 8)} - {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <>
+                  <Input
+                    placeholder="Tìm theo tên lớp hoặc mã lớp..."
+                    value={classSearch}
+                    onChange={(e) => setClassSearch(e.target.value)}
+                  />
+                  <Select value={trialClassId} onValueChange={handleTrialClassChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Chọn lớp học" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {classes
+                        .filter(c => {
+                          const q = classSearch.toLowerCase();
+                          return !q || c.name.toLowerCase().includes(q) || (c.display_id || '').toLowerCase().includes(q);
+                        })
+                        .map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.display_id || c.id.slice(0, 8)} - {c.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </>
               )}
             </div>
 
@@ -333,18 +346,30 @@ const AdminEnrollmentRequestDialog = ({
               ) : classes.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Chưa có lớp nào</p>
               ) : (
-                <Select value={realClassId} onValueChange={handleRealClassChange}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Chọn lớp học" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {classes.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.display_id || c.id.slice(0, 8)} - {c.name} ({formatPrice(c.price_per_session)})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <>
+                  <Input
+                    placeholder="Tìm theo tên lớp hoặc mã lớp..."
+                    value={classSearch}
+                    onChange={(e) => setClassSearch(e.target.value)}
+                  />
+                  <Select value={realClassId} onValueChange={handleRealClassChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Chọn lớp học" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {classes
+                        .filter(c => {
+                          const q = classSearch.toLowerCase();
+                          return !q || c.name.toLowerCase().includes(q) || (c.display_id || '').toLowerCase().includes(q);
+                        })
+                        .map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.display_id || c.id.slice(0, 8)} - {c.name} ({formatPrice(c.price_per_session)})
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </>
               )}
             </div>
 

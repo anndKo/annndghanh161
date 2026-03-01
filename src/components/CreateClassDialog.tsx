@@ -63,6 +63,7 @@ const CreateClassDialog = ({
   const [submitting, setSubmitting] = useState(false);
   const [tutors, setTutors] = useState<Tutor[]>([]);
   const [loadingTutors, setLoadingTutors] = useState(false);
+  const [tutorSearch, setTutorSearch] = useState('');
   const [discountEnabled, setDiscountEnabled] = useState(false);
   const [priceDisplay, setPriceDisplay] = useState('');
   
@@ -323,6 +324,12 @@ const CreateClassDialog = ({
               <UserPlus className="w-4 h-4" />
               Chọn gia sư
             </Label>
+            <Input
+              placeholder="Tìm gia sư theo tên..."
+              value={tutorSearch}
+              onChange={(e) => setTutorSearch(e.target.value)}
+              className="mb-2"
+            />
             <Select
               value={formData.tutor_id}
               onValueChange={(value) => setFormData(prev => ({ ...prev, tutor_id: value }))}
@@ -330,13 +337,15 @@ const CreateClassDialog = ({
               <SelectTrigger>
                 <SelectValue placeholder={loadingTutors ? "Đang tải..." : "Chọn gia sư (không bắt buộc)"} />
               </SelectTrigger>
-            <SelectContent>
+              <SelectContent>
                 <SelectItem value="no-tutor">Không chọn gia sư</SelectItem>
-                {tutors.map(tutor => (
-                  <SelectItem key={tutor.user_id} value={tutor.user_id}>
-                    {tutor.full_name} ({tutor.teachable_subjects.slice(0, 2).join(', ')}{tutor.teachable_subjects.length > 2 ? '...' : ''})
-                  </SelectItem>
-                ))}
+                {tutors
+                  .filter(t => t.full_name.toLowerCase().includes(tutorSearch.toLowerCase()))
+                  .map(tutor => (
+                    <SelectItem key={tutor.user_id} value={tutor.user_id}>
+                      {tutor.full_name} ({tutor.teachable_subjects.slice(0, 2).join(', ')}{tutor.teachable_subjects.length > 2 ? '...' : ''})
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
             {tutors.length === 0 && !loadingTutors && (

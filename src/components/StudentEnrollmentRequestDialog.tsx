@@ -14,7 +14,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Check, X, PlayCircle, GraduationCap, Clock, Image, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Check, X, PlayCircle, GraduationCap, Clock, Image as ImageIcon, Eye, EyeOff } from 'lucide-react';
+import ImageViewer from '@/components/ImageViewer';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 
@@ -55,6 +56,7 @@ const StudentEnrollmentRequestDialog = ({
   const [requests, setRequests] = useState<EnrollmentRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [viewImageUrl, setViewImageUrl] = useState<string | null>(null);
   
   // Accept form state
   const [acceptDialogOpen, setAcceptDialogOpen] = useState(false);
@@ -285,15 +287,13 @@ const StudentEnrollmentRequestDialog = ({
                     
                     {request.payment_image_url && (
                       <div className="text-sm">
-                        <a 
-                          href={request.payment_image_url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
+                        <button 
+                          onClick={() => setViewImageUrl(request.payment_image_url)}
                           className="flex items-center gap-2 text-primary hover:underline"
                         >
-                          <Image className="w-4 h-4" />
+                          <ImageIcon className="w-4 h-4" />
                           Xem ảnh chứng minh
-                        </a>
+                        </button>
                       </div>
                     )}
 
@@ -386,6 +386,13 @@ const StudentEnrollmentRequestDialog = ({
           </div>
         </DialogContent>
       </Dialog>
+
+      <ImageViewer
+        src={viewImageUrl || ''}
+        alt="Ảnh chứng minh thanh toán"
+        open={!!viewImageUrl}
+        onOpenChange={(open) => { if (!open) setViewImageUrl(null); }}
+      />
     </>
   );
 };

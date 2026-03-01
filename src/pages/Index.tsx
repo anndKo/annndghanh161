@@ -259,7 +259,7 @@ const Index = () => {
               <div className="space-y-3 animate-fade-in">
                 {/* Unified search + filters in one row on desktop */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                  <Input placeholder="Tìm mã lớp, tên lớp, địa chỉ..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="md:col-span-1" />
+                  <Input placeholder="Tìm theo địa chỉ, mã lớp, tên lớp..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="md:col-span-1" />
                 
                   <Select value={subjectFilter} onValueChange={setSubjectFilter}>
                     <SelectTrigger><SelectValue placeholder="Môn học" /></SelectTrigger>

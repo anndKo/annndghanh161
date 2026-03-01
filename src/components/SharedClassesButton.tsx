@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/untypedClient';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import {
   Dialog,
   DialogContent,
@@ -14,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Briefcase, MapPin, Monitor, Users, Clock, Loader2, Send } from 'lucide-react';
+import { Briefcase, MapPin, Monitor, Users, Clock, Loader2, Send, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface SharedClass {
@@ -46,6 +47,7 @@ const SharedClassesButton = () => {
   const [submitting, setSubmitting] = useState(false);
   const [myRequests, setMyRequests] = useState<string[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [addressSearch, setAddressSearch] = useState('');
 
   useEffect(() => {
     if (user) {
@@ -231,7 +233,18 @@ const SharedClassesButton = () => {
             </DialogDescription>
           </DialogHeader>
 
-          <ScrollArea className="flex-1 min-h-0 max-h-[60vh] pr-4">
+          {/* Address Search */}
+          <div className="relative mb-2">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Tìm theo địa chỉ..."
+              value={addressSearch}
+              onChange={(e) => setAddressSearch(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+
+          <ScrollArea className="flex-1 min-h-0 max-h-[55vh] pr-4">
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -242,71 +255,18 @@ const SharedClassesButton = () => {
                 <p>Hiện không có lớp nào đang cần gia sư</p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {sharedClasses.map((classItem) => (
-                  <Card 
-                    key={classItem.id}
-                    className={`cursor-pointer transition-all hover:shadow-md ${
-                      selectedClass?.id === classItem.id ? 'ring-2 ring-primary' : ''
-                    }`}
-                    onClick={() => setSelectedClass(classItem)}
-                  >
-                    <CardHeader className="pb-2">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="text-xs font-mono text-primary">{classItem.display_id}</p>
-                          <CardTitle className="text-base">{classItem.name}</CardTitle>
-                        </div>
-                        <div className="flex gap-2">
-                          <Badge variant={classItem.class_type === 'one_on_one' ? 'default' : 'secondary'}>
-                            {classItem.class_type === 'one_on_one' ? '1 kèm 1' : 'Nhóm'}
-                          </Badge>
-                          {myRequests.includes(classItem.id) && (
-                            <Badge variant="outline">Đã gửi yêu cầu</Badge>
-                          )}
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-muted-foreground mb-2">
-                        {classItem.subject} • {classItem.grade}
-                      </p>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                        {classItem.teaching_format === 'online' ? (
-                          <><Monitor className="w-4 h-4" />Online</>
-                        ) : classItem.teaching_format === 'offline' ? (
-                          <><MapPin className="w-4 h-4" />Offline</>
-                        ) : (
-                          <><Monitor className="w-4 h-4" />Online/Offline</>
-                        )}
-                      </div>
-                      {classItem.address && (
-                        <p className="text-sm text-muted-foreground flex items-center gap-1 mb-2">
-                          <MapPin className="w-3 h-3" />
-                          {classItem.address}
-                        </p>
-                      )}
-                      {classItem.schedule_days && (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
-                          <Clock className="w-3 h-3" />
-                          {classItem.schedule_days}
-                          {classItem.schedule_start_time && ` | ${classItem.schedule_start_time.slice(0, 5)} - ${classItem.schedule_end_time?.slice(0, 5)}`}
-                        </div>
-                      )}
-                      <div className="flex items-center justify-between mt-3">
-                        <p className="text-sm">
-                          <span className="text-primary font-semibold">{formatPrice(classItem.price_per_session)}</span>/buổi
-                        </p>
-                        {classItem.tutor_percentage && (
-                          <p className="text-xs text-muted-foreground">
-                            Gia sư nhận: {classItem.tutor_percentage}%
-                          </p>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+              <SortedClassList
+                classes={sharedClasses}
+                addressSearch={addressSearch}
+                selectedClass={selectedClass}
+                myRequests={myRequests}
+                onSelect={(c) => {
+                  if (!myRequests.includes(c.id)) {
+                    setSelectedClass(c);
+                  }
+                }}
+                formatPrice={formatPrice}
+              />
             )}
           </ScrollArea>
 
@@ -338,6 +298,119 @@ const SharedClassesButton = () => {
         </DialogContent>
       </Dialog>
     </>
+  );
+};
+
+// Helper: count matching characters between search query and address
+const countMatchingChars = (address: string, query: string): number => {
+  if (!address || !query) return 0;
+  const addrLower = address.toLowerCase();
+  const queryLower = query.toLowerCase();
+  let count = 0;
+  for (const char of queryLower) {
+    if (addrLower.includes(char)) count++;
+  }
+  // Bonus for substring match
+  if (addrLower.includes(queryLower)) count += queryLower.length * 2;
+  return count;
+};
+
+// Sorted class list component
+const SortedClassList = ({
+  classes,
+  addressSearch,
+  selectedClass,
+  myRequests,
+  onSelect,
+  formatPrice,
+}: {
+  classes: SharedClass[];
+  addressSearch: string;
+  selectedClass: SharedClass | null;
+  myRequests: string[];
+  onSelect: (c: SharedClass) => void;
+  formatPrice: (p: number) => string;
+}) => {
+  const sortedClasses = useMemo(() => {
+    if (!addressSearch.trim()) return classes;
+    return [...classes].sort((a, b) => {
+      const scoreA = countMatchingChars(a.address || '', addressSearch);
+      const scoreB = countMatchingChars(b.address || '', addressSearch);
+      return scoreB - scoreA;
+    });
+  }, [classes, addressSearch]);
+
+  return (
+    <div className="space-y-4">
+      {sortedClasses.map((classItem) => {
+        const alreadyRequested = myRequests.includes(classItem.id);
+        return (
+          <Card
+            key={classItem.id}
+            className={`transition-all ${
+              alreadyRequested
+                ? 'opacity-60 cursor-not-allowed'
+                : 'cursor-pointer hover:shadow-md'
+            } ${selectedClass?.id === classItem.id ? 'ring-2 ring-primary' : ''}`}
+            onClick={() => onSelect(classItem)}
+          >
+            <CardHeader className="pb-2">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-mono text-primary">{classItem.display_id}</p>
+                  <CardTitle className="text-base">{classItem.name}</CardTitle>
+                </div>
+                <div className="flex gap-2">
+                  <Badge variant={classItem.class_type === 'one_on_one' ? 'default' : 'secondary'}>
+                    {classItem.class_type === 'one_on_one' ? '1 kèm 1' : 'Nhóm'}
+                  </Badge>
+                  {alreadyRequested && (
+                    <Badge variant="outline">Đã gửi yêu cầu</Badge>
+                  )}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-2">
+                {classItem.subject} • {classItem.grade}
+              </p>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                {classItem.teaching_format === 'online' ? (
+                  <><Monitor className="w-4 h-4" />Online</>
+                ) : classItem.teaching_format === 'offline' ? (
+                  <><MapPin className="w-4 h-4" />Offline</>
+                ) : (
+                  <><Monitor className="w-4 h-4" />Online/Offline</>
+                )}
+              </div>
+              {classItem.address && (
+                <p className="text-sm text-muted-foreground flex items-center gap-1 mb-2">
+                  <MapPin className="w-3 h-3" />
+                  {classItem.address}
+                </p>
+              )}
+              {classItem.schedule_days && (
+                <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
+                  <Clock className="w-3 h-3" />
+                  {classItem.schedule_days}
+                  {classItem.schedule_start_time && ` | ${classItem.schedule_start_time.slice(0, 5)} - ${classItem.schedule_end_time?.slice(0, 5)}`}
+                </div>
+              )}
+              <div className="flex items-center justify-between mt-3">
+                <p className="text-sm">
+                  <span className="text-primary font-semibold">{formatPrice(classItem.price_per_session)}</span>/buổi
+                </p>
+                {classItem.tutor_percentage && (
+                  <p className="text-xs text-muted-foreground">
+                    Gia sư nhận: {classItem.tutor_percentage}%
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
   );
 };
 

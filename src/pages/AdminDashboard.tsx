@@ -21,6 +21,9 @@ import MobileMenu from '@/components/MobileMenu';
 import AdminAttendanceStats from '@/components/AdminAttendanceStats';
 import AdminPasswordResetRequests from '@/components/AdminPasswordResetRequests';
 import AdminClassRequestsDialog from '@/components/AdminClassRequestsDialog';
+import AdminReportsDialog from '@/components/AdminReportsDialog';
+import AdminMessageManagement from '@/components/AdminMessageManagement';
+import UnreadMessageBadge from '@/components/UnreadMessageBadge';
 import {
   GraduationCap,
   Users,
@@ -32,7 +35,6 @@ import {
   Eye,
   Loader2,
   Plus,
-  MessageCircle,
   FileText,
   ExternalLink,
   Trash2,
@@ -44,11 +46,12 @@ import {
   Settings,
   ClipboardList,
   Send,
-  Menu,
   CalendarCheck,
   RefreshCw,
   Share2,
   Briefcase,
+  Flag,
+  MessageSquare,
 } from 'lucide-react';
 import {
   Dialog,
@@ -301,6 +304,9 @@ const AdminDashboard = () => {
   const [attendanceStatsOpen, setAttendanceStatsOpen] = useState(false);
   const [passwordResetOpen, setPasswordResetOpen] = useState(false);
   const [classRequestsOpen, setClassRequestsOpen] = useState(false);
+  const [reportsOpen, setReportsOpen] = useState(false);
+  const [messageManagementOpen, setMessageManagementOpen] = useState(false);
+  const [unreadReportsCount, setUnreadReportsCount] = useState(0);
 
   // Listen for openMessaging event from AdminClassRequestsDialog
   useEffect(() => {
@@ -327,8 +333,17 @@ const AdminDashboard = () => {
       fetchApplications();
       fetchClasses();
       fetchEnrollments();
+      fetchUnreadReportsCount();
     }
   }, [user, role]);
+
+  const fetchUnreadReportsCount = async () => {
+    const { count } = await supabase
+      .from('conversation_reports')
+      .select('*', { count: 'exact', head: true })
+      .eq('is_read', false);
+    setUnreadReportsCount(count || 0);
+  };
 
   const fetchApplications = async () => {
     try {
@@ -768,30 +783,9 @@ const AdminDashboard = () => {
             </div>
           </div>
           
-          {/* Desktop buttons */}
-          <div className="hidden md:flex items-center gap-2">
+          <div className="flex items-center gap-1 md:gap-2">
             <NotificationBell />
-            <Button variant="ghost" size="icon" onClick={() => setClassRequestsOpen(true)} title="Yêu cầu nhận lớp">
-              <Briefcase className="w-5 h-5" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => setAttendanceStatsOpen(true)} title="Thống kê điểm danh">
-              <CalendarCheck className="w-5 h-5" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => setPasswordResetOpen(true)} title="Yêu cầu đặt lại mật khẩu">
-              <RefreshCw className="w-5 h-5" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => setMessagingOpen(true)}>
-              <MessageCircle className="w-5 h-5" />
-            </Button>
-            <Button variant="ghost" onClick={handleLogout}>
-              <LogOut className="w-4 h-4 mr-2" />
-              Đăng xuất
-            </Button>
-          </div>
-          
-          {/* Mobile menu */}
-          <div className="flex md:hidden items-center gap-1">
-            <NotificationBell />
+            <UnreadMessageBadge onClick={() => setMessagingOpen(true)} />
             <MobileMenu title="Menu Admin">
               <Button variant="ghost" className="w-full justify-start" onClick={() => setClassRequestsOpen(true)}>
                 <Briefcase className="w-5 h-5 mr-2" />
@@ -805,9 +799,16 @@ const AdminDashboard = () => {
                 <RefreshCw className="w-5 h-5 mr-2" />
                 Yêu cầu đặt lại mật khẩu
               </Button>
-              <Button variant="ghost" className="w-full justify-start" onClick={() => setMessagingOpen(true)}>
-                <MessageCircle className="w-5 h-5 mr-2" />
-                Tin nhắn
+              <Button variant="ghost" className="w-full justify-start" onClick={() => setMessageManagementOpen(true)}>
+                <MessageSquare className="w-5 h-5 mr-2" />
+                Quản lý tin nhắn
+              </Button>
+              <Button variant="ghost" className="w-full justify-start relative" onClick={() => { setReportsOpen(true); fetchUnreadReportsCount(); }}>
+                <Flag className="w-5 h-5 mr-2" />
+                Kiểm tra báo cáo
+                {unreadReportsCount > 0 && (
+                  <Badge variant="destructive" className="ml-auto text-xs">{unreadReportsCount}</Badge>
+                )}
               </Button>
               <Button variant="ghost" className="w-full justify-start text-destructive" onClick={handleLogout}>
                 <LogOut className="w-5 h-5 mr-2" />
@@ -1431,6 +1432,21 @@ const AdminDashboard = () => {
         open={classRequestsOpen}
         onOpenChange={setClassRequestsOpen}
         onApproved={fetchClasses}
+      />
+
+      {/* Reports Dialog */}
+      <AdminReportsDialog
+        open={reportsOpen}
+        onOpenChange={(open) => {
+          setReportsOpen(open);
+          if (!open) fetchUnreadReportsCount();
+        }}
+      />
+
+      {/* Message Management Dialog */}
+      <AdminMessageManagement
+        open={messageManagementOpen}
+        onOpenChange={setMessageManagementOpen}
       />
     </div>
   );

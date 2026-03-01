@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import TrialEnrollmentBadge from '@/components/TrialEnrollmentBadge';
+import EnrollmentCountdown from '@/components/EnrollmentCountdown';
 import useTrialExpiration from '@/hooks/useTrialExpiration';
 import ImprovedPostCard from '@/components/ImprovedPostCard';
 
@@ -114,6 +115,7 @@ const ClassPage = () => {
   const [enrollmentInfo, setEnrollmentInfo] = useState<{
     enrollment_type: string | null;
     trial_expires_at: string | null;
+    enrollment_expires_at: string | null;
   } | null>(null);
 
   // Post creation
@@ -269,7 +271,7 @@ const ClassPage = () => {
         // Check if enrolled student (not removed/expired)
         const { data: enrollment } = await supabase
           .from('enrollments')
-          .select('status, enrollment_type, trial_expires_at')
+          .select('status, enrollment_type, trial_expires_at, enrollment_expires_at')
           .eq('class_id', classId)
           .eq('student_id', user.id)
           .eq('status', 'approved')
@@ -301,6 +303,7 @@ const ClassPage = () => {
           setEnrollmentInfo({
             enrollment_type: enrollment.enrollment_type,
             trial_expires_at: enrollment.trial_expires_at,
+            enrollment_expires_at: enrollment.enrollment_expires_at,
           });
         }
       }
@@ -683,6 +686,10 @@ const ClassPage = () => {
             <div className="flex gap-2 flex-wrap">
               <TrialEnrollmentBadge 
                 trialExpiresAt={enrollmentInfo?.trial_expires_at || null}
+                enrollmentType={enrollmentInfo?.enrollment_type || null}
+              />
+              <EnrollmentCountdown
+                enrollmentExpiresAt={enrollmentInfo?.enrollment_expires_at || null}
                 enrollmentType={enrollmentInfo?.enrollment_type || null}
               />
               <Badge variant={isTutor ? 'default' : 'secondary'}>

@@ -17,21 +17,18 @@ import {
   GraduationCap,
   LogOut,
   Clock,
-  CheckCircle2,
   XCircle,
   BookOpen,
   Users,
   Loader2,
-  MessageCircle,
   Copy,
   User,
   Monitor,
   MapPin,
   Send,
   DollarSign,
-  Menu,
-  Briefcase,
 } from 'lucide-react';
+import UnreadMessageBadge from '@/components/UnreadMessageBadge';
 import { useToast } from '@/hooks/use-toast';
 
 const DAY_LABELS: { [key: string]: string } = {
@@ -334,36 +331,11 @@ const TutorDashboard = () => {
             </div>
           </div>
           
-          {/* Desktop buttons */}
-          <div className="hidden md:flex items-center gap-2 flex-wrap">
-            <SharedClassesButton />
-            <Button variant="outline" size="sm" onClick={() => setPaymentRequestOpen(true)} className="gap-1">
-              <Send className="w-4 h-4" />
-              <span className="hidden sm:inline">Gửi nhiệm vụ</span>
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setRevenueOpen(true)} className="gap-1">
-              <DollarSign className="w-4 h-4" />
-              <span className="hidden sm:inline">Doanh thu</span>
-            </Button>
-            <Badge className="bg-success hidden sm:flex">
-              <CheckCircle2 className="w-3 h-3 mr-1" />
-              Đã xác minh
-            </Badge>
+          <div className="flex items-center gap-1 md:gap-2">
             <NotificationBell />
-            <Button variant="ghost" size="icon" onClick={() => setMessagingOpen(true)}>
-              <MessageCircle className="w-5 h-5" />
-            </Button>
-            <Button variant="ghost" onClick={handleLogout}>
-              <LogOut className="w-4 h-4 mr-2" />
-              <span className="hidden sm:inline">Đăng xuất</span>
-            </Button>
-          </div>
-          
-          {/* Mobile menu */}
-          <div className="flex md:hidden items-center gap-1">
-            <SharedClassesButton />
-            <NotificationBell />
+            <UnreadMessageBadge onClick={() => setMessagingOpen(true)} />
             <MobileMenu title="Menu gia sư">
+              <SharedClassesButton />
               <Button variant="ghost" className="w-full justify-start" onClick={() => setPaymentRequestOpen(true)}>
                 <Send className="w-5 h-5 mr-2" />
                 Gửi nhiệm vụ
@@ -371,10 +343,6 @@ const TutorDashboard = () => {
               <Button variant="ghost" className="w-full justify-start" onClick={() => setRevenueOpen(true)}>
                 <DollarSign className="w-5 h-5 mr-2" />
                 Doanh thu
-              </Button>
-              <Button variant="ghost" className="w-full justify-start" onClick={() => setMessagingOpen(true)}>
-                <MessageCircle className="w-5 h-5 mr-2" />
-                Tin nhắn
               </Button>
               <Button variant="ghost" className="w-full justify-start text-destructive" onClick={handleLogout}>
                 <LogOut className="w-5 h-5 mr-2" />

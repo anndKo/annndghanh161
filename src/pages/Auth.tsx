@@ -109,6 +109,12 @@ const Auth = () => {
             title: 'Đăng nhập thất bại',
             description: 'Email hoặc mật khẩu không đúng'
           });
+        } else if (error.message.includes('Email not confirmed')) {
+          toast({
+            variant: 'destructive',
+            title: 'Đăng nhập thất bại',
+            description: 'Email chưa được xác nhận. Vui lòng kiểm tra hộp thư.'
+          });
         } else {
           toast({
             variant: 'destructive',
@@ -121,6 +127,19 @@ const Auth = () => {
           title: 'Đăng nhập thành công',
           description: 'Chào mừng bạn quay trở lại!'
         });
+        // Fetch role and redirect
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const { data: roleData } = await supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', session.user.id)
+            .single();
+          const userRole = roleData?.role;
+          if (userRole === 'admin') navigate('/admin');
+          else if (userRole === 'tutor') navigate('/tutor');
+          else navigate('/student');
+        }
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -170,9 +189,25 @@ const Auth = () => {
           title: 'Đăng ký thành công!',
           description: signupRole === 'tutor' ? 'Vui lòng hoàn thành hồ sơ gia sư để được duyệt.' : 'Chào mừng bạn đến với EduTutor!'
         });
-        if (signupRole === 'tutor') {
-          navigate('/tutor/register');
-        }
+        // Wait briefly for session to establish then redirect
+        setTimeout(async () => {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            if (signupRole === 'tutor') {
+              navigate('/tutor/register');
+            } else {
+              const { data: roleData } = await supabase
+                .from('user_roles')
+                .select('role')
+                .eq('user_id', session.user.id)
+                .single();
+              const userRole = roleData?.role;
+              if (userRole === 'admin') navigate('/admin');
+              else if (userRole === 'tutor') navigate('/tutor');
+              else navigate('/student');
+            }
+          }
+        }, 500);
       }
     } catch (error) {
       if (error instanceof z.ZodError) {

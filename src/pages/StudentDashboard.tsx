@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, memo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/untypedClient';
@@ -17,6 +17,7 @@ import { useBackButtonBlock } from '@/hooks/useBackButtonBlock';
 import StudentEnrollmentRequestDialog from '@/components/StudentEnrollmentRequestDialog';
 import TrialEnrollmentBadge from '@/components/TrialEnrollmentBadge';
 import RealEnrollmentBadge from '@/components/RealEnrollmentBadge';
+import EnrollmentCountdown from '@/components/EnrollmentCountdown';
 import useEnrollmentExpiration from '@/hooks/useEnrollmentExpiration';
 import MobileMenu from '@/components/MobileMenu';
 import AttendanceCheckIn from '@/components/AttendanceCheckIn';
@@ -30,8 +31,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  GraduationCap, LogOut, BookOpen, Search, Filter, MapPin, Monitor, Users, User, Loader2, MessageCircle, Star, UserPlus, Copy, Clock, CheckCircle2, CreditCard, ClipboardList, Menu, Tag, Calendar, CalendarCheck, RefreshCw, CalendarDays
+  GraduationCap, LogOut, BookOpen, Search, Filter, MapPin, Monitor, Users, User, Loader2, MessageCircle, Star, UserPlus, Copy, Clock, CheckCircle2, CreditCard, ClipboardList, Tag, Calendar, CalendarCheck, RefreshCw, CalendarDays, ChevronDown, ChevronUp
 } from 'lucide-react';
+import UnreadMessageBadge from '@/components/UnreadMessageBadge';
 import TutorInfoDialog from '@/components/TutorInfoDialog';
 import ReEnrollButton from '@/components/ReEnrollButton';
 
@@ -55,8 +57,8 @@ const formatScheduleDays = (scheduleDays: string | null | undefined): string => 
   }
 };
 
-// Component to show tutor name with stars and verification badge
-const TutorNameWithStars = ({ tutorId }: { tutorId: string }) => {
+// Memoized component to prevent re-fetching on every parent render
+const TutorNameWithStars = memo(({ tutorId }: { tutorId: string }) => {
   const [tutorName, setTutorName] = useState<string>('');
   const [avgRating, setAvgRating] = useState<number>(0);
   const [ratingCount, setRatingCount] = useState<number>(0);
@@ -97,7 +99,8 @@ const TutorNameWithStars = ({ tutorId }: { tutorId: string }) => {
       )}
     </div>
   );
-};
+});
+TutorNameWithStars.displayName = 'TutorNameWithStars';
 const GRADES = ['Lớp 1', 'Lớp 2', 'Lớp 3', 'Lớp 4', 'Lớp 5', 'Lớp 6', 'Lớp 7', 'Lớp 8', 'Lớp 9', 'Lớp 10', 'Lớp 11', 'Lớp 12'];
 
 // Admin ID for messaging
@@ -176,14 +179,14 @@ const StudentDashboard = () => {
   const [gradeFilter, setGradeFilter] = useState<string>('all');
   const [formatFilter, setFormatFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [addressFilter, setAddressFilter] = useState('');
+  
   const [advancedFilters, setAdvancedFilters] = useState<FilterState>({
-    area: '',
     startTime: '',
     endTime: '',
     days: [],
     subjects: [],
   });
+  const [searchFiltersOpen, setSearchFiltersOpen] = useState(false);
   // Listen for openMessaging event
   useEffect(() => {
     const handleOpenMessaging = (event: CustomEvent<{ partnerId: string; partnerName: string }>) => {
@@ -339,36 +342,65 @@ const StudentDashboard = () => {
     toast({ title: 'Đã sao chép', description: 'ID của bạn đã được sao chép' });
   };
 
-  const filteredClasses = classes.filter(c => {
-    if (subjectFilter !== 'all' && c.subject !== subjectFilter) return false;
-    if (gradeFilter !== 'all' && c.grade !== gradeFilter) return false;
-    if (formatFilter !== 'all' && c.teaching_format !== formatFilter) return false;
-    if (searchQuery && !c.display_id?.toLowerCase().includes(searchQuery.toLowerCase()) && !c.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    if (addressFilter && c.address && !c.address.toLowerCase().includes(addressFilter.toLowerCase())) return false;
-    
-    // Advanced filters
-    if (advancedFilters.area && c.address && !c.address.toLowerCase().includes(advancedFilters.area.toLowerCase())) return false;
-    if (advancedFilters.subjects.length > 0 && !advancedFilters.subjects.includes(c.subject)) return false;
-    
-    // Filter by days
-    if (advancedFilters.days.length > 0 && c.schedule_days) {
-      try {
-        const scheduleDays = JSON.parse(c.schedule_days);
-        const hasMatchingDay = advancedFilters.days.some(day => scheduleDays[day]);
-        if (!hasMatchingDay) return false;
-      } catch (e) {
-        return false;
+  // Helper: remove Vietnamese diacritics
+  const removeDiacritics = (str: string) =>
+    str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd');
+
+  // Fuzzy address match: split query into words, count matches
+  const fuzzyAddressMatch = (address: string, query: string): number => {
+    if (!query.trim()) return 1;
+    const normalizedAddr = removeDiacritics(address.toLowerCase());
+    const words = removeDiacritics(query.toLowerCase()).split(/\s+/).filter(Boolean);
+    if (words.length === 0) return 1;
+    let matchCount = 0;
+    for (const word of words) {
+      if (normalizedAddr.includes(word)) matchCount++;
+    }
+    return matchCount;
+  };
+
+  const filteredClasses = classes
+    .map(c => {
+      // Basic filters
+      if (subjectFilter !== 'all' && c.subject !== subjectFilter) return null;
+      if (gradeFilter !== 'all' && c.grade !== gradeFilter) return null;
+      if (formatFilter !== 'all' && c.teaching_format !== formatFilter) return null;
+      
+      // Unified search: match against display_id, name, or address
+      let addressScore = 1;
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        const matchesId = c.display_id?.toLowerCase().includes(q);
+        const matchesName = c.name.toLowerCase().includes(q);
+        const matchesAddress = c.address ? fuzzyAddressMatch(c.address, searchQuery) : 0;
+        if (!matchesId && !matchesName && matchesAddress === 0) return null;
+        if (matchesAddress > 0 && !matchesId && !matchesName) addressScore = matchesAddress;
       }
-    }
-    
-    // Filter by time
-    if ((advancedFilters.startTime || advancedFilters.endTime) && c.schedule_start_time && c.schedule_end_time) {
-      if (advancedFilters.startTime && c.schedule_start_time < advancedFilters.startTime) return false;
-      if (advancedFilters.endTime && c.schedule_end_time > advancedFilters.endTime) return false;
-    }
-    
-    return true;
-  });
+      
+      // Advanced filters
+      if (advancedFilters.subjects.length > 0 && !advancedFilters.subjects.includes(c.subject)) return null;
+      
+      // Filter by days
+      if (advancedFilters.days.length > 0 && c.schedule_days) {
+        try {
+          const scheduleDays = JSON.parse(c.schedule_days);
+          const hasMatchingDay = advancedFilters.days.some(day => scheduleDays[day]);
+          if (!hasMatchingDay) return null;
+        } catch (e) {
+          return null;
+        }
+      }
+      
+      // Filter by time
+      if ((advancedFilters.startTime || advancedFilters.endTime) && c.schedule_start_time && c.schedule_end_time) {
+        if (advancedFilters.startTime && c.schedule_start_time < advancedFilters.startTime) return null;
+        if (advancedFilters.endTime && c.schedule_end_time > advancedFilters.endTime) return null;
+      }
+      
+      return { ...c, _addressScore: addressScore };
+    })
+    .filter(Boolean)
+    .sort((a, b) => (b as any)._addressScore - (a as any)._addressScore) as ClassItem[];
 
   const getEnrollmentStatus = (classId: string) => {
     const enrollment = enrollments.find(e => e.class_id === classId);
@@ -420,28 +452,9 @@ const StudentDashboard = () => {
             </div>
           </div>
           
-          {/* Desktop buttons */}
-          <div className="hidden md:flex items-center gap-2">
+          <div className="flex items-center gap-1 md:gap-2">
             <NotificationBell />
-            <Button variant="ghost" size="icon" onClick={() => setScheduleOpen(true)} title="Lịch học">
-              <CalendarDays className="w-5 h-5" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => setAttendanceOpen(true)} title="Điểm danh">
-              <CalendarCheck className="w-5 h-5" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => setEnrollmentRequestsOpen(true)} title="Yêu cầu đăng ký">
-              <ClipboardList className="w-5 h-5" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => setMessagingOpen(true)}><MessageCircle className="w-5 h-5" /></Button>
-            <Button variant="outline" size="sm" asChild>
-              <Link to="/tutor/register"><UserPlus className="w-4 h-4 mr-2" />Đăng ký gia sư</Link>
-            </Button>
-            <Button variant="ghost" onClick={handleLogout}><LogOut className="w-4 h-4 mr-2" />Đăng xuất</Button>
-          </div>
-          
-          {/* Mobile menu */}
-          <div className="flex md:hidden items-center gap-1">
-            <NotificationBell />
+            <UnreadMessageBadge onClick={() => setMessagingOpen(true)} />
             <MobileMenu title="Menu học viên">
               <Button variant="ghost" className="w-full justify-start" onClick={() => setScheduleOpen(true)}>
                 <CalendarDays className="w-5 h-5 mr-2" />
@@ -454,10 +467,6 @@ const StudentDashboard = () => {
               <Button variant="ghost" className="w-full justify-start" onClick={() => setEnrollmentRequestsOpen(true)}>
                 <ClipboardList className="w-5 h-5 mr-2" />
                 Yêu cầu đăng ký
-              </Button>
-              <Button variant="ghost" className="w-full justify-start" onClick={() => setMessagingOpen(true)}>
-                <MessageCircle className="w-5 h-5 mr-2" />
-                Tin nhắn
               </Button>
               <Button variant="ghost" className="w-full justify-start" asChild>
                 <Link to="/tutor/register"><UserPlus className="w-5 h-5 mr-2" />Đăng ký gia sư</Link>
@@ -488,34 +497,41 @@ const StudentDashboard = () => {
 
           <TabsContent value="browse">
             <Card className="mb-6">
-              <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Filter className="w-5 h-5" />Bộ lọc & Tìm kiếm</CardTitle></CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-                  <div className="space-y-2">
-                    <Label>Tìm theo mã lớp</Label>
-                    <Input placeholder="Nhập mã lớp (VD: CL12345)" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+              <CardHeader className="flex flex-row items-center justify-between gap-3">
+                <CardTitle className="text-lg flex items-center gap-2"><Filter className="w-5 h-5" />Bộ lọc & Tìm kiếm</CardTitle>
+                <Button variant="outline" size="sm" onClick={() => setSearchFiltersOpen((prev) => !prev)}>
+                  <Search className="w-4 h-4 mr-2" />
+                  {searchFiltersOpen ? 'Thu bộ lọc' : 'Tìm kiếm'}
+                  {searchFiltersOpen ? <ChevronUp className="w-4 h-4 ml-2" /> : <ChevronDown className="w-4 h-4 ml-2" />}
+                </Button>
+              </CardHeader>
+              {searchFiltersOpen && (
+                <CardContent>
+                   <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>Tìm kiếm</Label>
+                      <Input placeholder="Tìm mã lớp, tên lớp, địa chỉ..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                    </div>
+                    <div className="space-y-2"><Label>Môn học</Label><Select value={subjectFilter} onValueChange={setSubjectFilter}><SelectTrigger><SelectValue placeholder="Tất cả môn" /></SelectTrigger><SelectContent><SelectItem value="all">Tất cả môn</SelectItem>{SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
+                    <div className="space-y-2"><Label>Lớp</Label><Select value={gradeFilter} onValueChange={setGradeFilter}><SelectTrigger><SelectValue placeholder="Tất cả lớp" /></SelectTrigger><SelectContent><SelectItem value="all">Tất cả lớp</SelectItem>{GRADES.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}</SelectContent></Select></div>
+                    <div className="space-y-2"><Label>Hình thức</Label><Select value={formatFilter} onValueChange={setFormatFilter}><SelectTrigger><SelectValue placeholder="Tất cả" /></SelectTrigger><SelectContent><SelectItem value="all">Tất cả</SelectItem><SelectItem value="online">Online</SelectItem><SelectItem value="offline">Offline</SelectItem><SelectItem value="both">Cả hai</SelectItem></SelectContent></Select></div>
                   </div>
-                  <div className="space-y-2"><Label>Môn học</Label><Select value={subjectFilter} onValueChange={setSubjectFilter}><SelectTrigger><SelectValue placeholder="Tất cả môn" /></SelectTrigger><SelectContent><SelectItem value="all">Tất cả môn</SelectItem>{SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
-                  <div className="space-y-2"><Label>Lớp</Label><Select value={gradeFilter} onValueChange={setGradeFilter}><SelectTrigger><SelectValue placeholder="Tất cả lớp" /></SelectTrigger><SelectContent><SelectItem value="all">Tất cả lớp</SelectItem>{GRADES.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}</SelectContent></Select></div>
-                  <div className="space-y-2"><Label>Hình thức</Label><Select value={formatFilter} onValueChange={setFormatFilter}><SelectTrigger><SelectValue placeholder="Tất cả" /></SelectTrigger><SelectContent><SelectItem value="all">Tất cả</SelectItem><SelectItem value="online">Online</SelectItem><SelectItem value="offline">Offline</SelectItem><SelectItem value="both">Cả hai</SelectItem></SelectContent></Select></div>
-                  <div className="space-y-2">
-                    <Label>Địa chỉ</Label>
-                    <Input placeholder="Nhập địa chỉ tìm kiếm..." value={addressFilter} onChange={(e) => setAddressFilter(e.target.value)} />
+                  <div className="flex justify-end mt-2">
+                    <Button variant="outline" size="sm" onClick={() => { setSubjectFilter('all'); setGradeFilter('all'); setFormatFilter('all'); setSearchQuery(''); setAdvancedFilters({ startTime: '', endTime: '', days: [], subjects: [] }); }}>Xóa bộ lọc</Button>
                   </div>
-                  <div className="flex items-end"><Button variant="outline" className="w-full" onClick={() => { setSubjectFilter('all'); setGradeFilter('all'); setFormatFilter('all'); setSearchQuery(''); setAddressFilter(''); setAdvancedFilters({ area: '', startTime: '', endTime: '', days: [], subjects: [] }); }}>Xóa bộ lọc</Button></div>
-                </div>
-                
-                {/* Advanced Filter Panel */}
-                <div className="mt-4">
-                  <ClassFilterPanel onFilterChange={setAdvancedFilters} />
-                </div>
-              </CardContent>
+                  
+                  {/* Advanced Filter Panel */}
+                  <div className="mt-4">
+                    <ClassFilterPanel onFilterChange={setAdvancedFilters} />
+                  </div>
+                </CardContent>
+              )}
             </Card>
 
             {filteredClasses.length === 0 ? (
               <Card><CardContent className="py-12 text-center text-muted-foreground"><BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" /><p>Chưa có lớp học nào</p></CardContent></Card>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredClasses.map((classItem) => {
                   const enrollStatus = getEnrollmentStatus(classItem.id);
                   return (
@@ -607,6 +623,10 @@ const StudentDashboard = () => {
                               enrollmentType={enrollment.enrollment_type || null}
                             />
                             <RealEnrollmentBadge
+                              enrollmentExpiresAt={enrollment.enrollment_expires_at || null}
+                              enrollmentType={enrollment.enrollment_type || null}
+                            />
+                            <EnrollmentCountdown
                               enrollmentExpiresAt={enrollment.enrollment_expires_at || null}
                               enrollmentType={enrollment.enrollment_type || null}
                             />

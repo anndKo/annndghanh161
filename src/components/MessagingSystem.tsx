@@ -35,10 +35,13 @@ import {
   Reply,
   Pencil,
   Trash2,
+  Upload,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import ConversationReportDialog from '@/components/ConversationReportDialog';
+import ImageViewer from '@/components/ImageViewer';
 
 interface Message {
   id: string;
@@ -130,8 +133,18 @@ const MessagingSystem = ({
   const [paymentFile, setPaymentFile] = useState<File | null>(null);
   const [sendingPayment, setSendingPayment] = useState(false);
 
+  // Payment response dialogs
+  const [showPayBillDialog, setShowPayBillDialog] = useState(false);
+  const [payBillFile, setPayBillFile] = useState<File | null>(null);
+  const [uploadingBill, setUploadingBill] = useState(false);
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+
   // Highlighted message for scroll-to-reply
   const [highlightedMsgId, setHighlightedMsgId] = useState<string | null>(null);
+
+  // Image viewer state
+  const [viewImageUrl, setViewImageUrl] = useState<string | null>(null);
 
   // Initialize audio on first user interaction
   const initializeAudio = useCallback(() => {
@@ -545,10 +558,35 @@ const MessagingSystem = ({
     }
   };
 
-  const handlePaymentResponse = async (response: 'pay' | 'reject' | 'consult') => {
+  const handlePayBillUpload = async () => {
+    if (!payBillFile || !user || !selectedUser) return;
+    setUploadingBill(true);
+    try {
+      const fileExt = payBillFile.name.split('.').pop();
+      const fileName = `bills/${user.id}/${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage.from('assignments').upload(fileName, payBillFile);
+      if (uploadError) throw uploadError;
+      const { data: urlData } = supabase.storage.from('assignments').getPublicUrl(fileName);
+      await sendMessage(`💰 Tôi xác nhận đã thanh toán\n[BILL:${urlData.publicUrl}]`);
+      toast({ title: 'Đã gửi xác nhận thanh toán' });
+      setShowPayBillDialog(false);
+      setPayBillFile(null);
+    } catch {
+      toast({ variant: 'destructive', title: 'Lỗi', description: 'Không thể tải bill lên' });
+    } finally {
+      setUploadingBill(false);
+    }
+  };
+
+  const handlePaymentReject = async () => {
     if (!user || !selectedUser) return;
-    const responseText = response === 'pay' ? '💰 Tôi xác nhận đã thanh toán' : response === 'reject' ? '❌ Tôi từ chối thanh toán' : '💬 Tôi cần tư vấn thêm';
-    await sendMessage(responseText);
+    const reason = rejectReason.trim();
+    const msg = reason 
+      ? `❌ Tôi từ chối thanh toán\n[REJECT_REASON:${reason}]` 
+      : '❌ Tôi từ chối thanh toán';
+    await sendMessage(msg);
+    setShowRejectDialog(false);
+    setRejectReason('');
   };
 
   const handleSelectUser = async (userProfile: UserProfile | Conversation) => {
@@ -600,15 +638,54 @@ const MessagingSystem = ({
       return (
         <div className="space-y-2">
           <p className="text-sm font-medium">💳 Yêu cầu thanh toán</p>
-          <img src={imageUrl} alt="QR thanh toán" className="max-w-full rounded-lg max-h-48 object-contain" />
+          <img src={imageUrl} alt="QR thanh toán" 
+            className="max-w-full rounded-lg max-h-48 object-contain cursor-pointer"
+            onClick={() => setViewImageUrl(imageUrl)} />
           <p className="text-sm font-bold">{formatPrice(amount)}</p>
           {!isOwn && (
             <div className="flex flex-wrap gap-2 mt-2">
-              <Button size="sm" variant="default" onClick={() => handlePaymentResponse('pay')}>💰 Thanh toán</Button>
-              <Button size="sm" variant="outline" onClick={() => handlePaymentResponse('reject')}>❌ Từ chối</Button>
-              <Button size="sm" variant="secondary" onClick={() => handlePaymentResponse('consult')}>💬 Tư vấn</Button>
+              <Button size="sm" variant="default" onClick={() => setShowPayBillDialog(true)}>
+                <Upload className="w-3 h-3 mr-1" />
+                Thanh toán
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setShowRejectDialog(true)}>❌ Từ chối</Button>
+              <Button size="sm" variant="secondary" onClick={() => sendMessage('💬 Tôi cần tư vấn thêm')}>💬 Tư vấn</Button>
             </div>
           )}
+        </div>
+      );
+    }
+
+    // Bill image
+    const billMatch = content.match(/\[BILL:(.+)\]/);
+    if (billMatch) {
+      const billUrl = billMatch[1];
+      const textPart = content.replace(/\[BILL:.+\]/, '').trim();
+      return (
+        <div className="space-y-2">
+          {textPart && <p className="text-sm whitespace-pre-wrap break-words">{textPart}</p>}
+          <div className="relative">
+            <img src={billUrl} alt="Bill thanh toán" 
+              className="max-w-full rounded-lg max-h-48 object-contain cursor-pointer border border-border"
+              onClick={() => setViewImageUrl(billUrl)} />
+            <Badge className="absolute top-1 left-1 text-[10px]">Bill</Badge>
+          </div>
+        </div>
+      );
+    }
+
+    // Reject reason
+    const rejectMatch = content.match(/\[REJECT_REASON:(.+)\]/);
+    if (rejectMatch) {
+      const reason = rejectMatch[1];
+      const textPart = content.replace(/\[REJECT_REASON:.+\]/, '').trim();
+      return (
+        <div className="space-y-2">
+          {textPart && <p className="text-sm whitespace-pre-wrap break-words">{textPart}</p>}
+          <div className="border-2 border-destructive/40 bg-destructive/10 rounded-lg p-2.5">
+            <p className="text-xs font-semibold text-destructive mb-1">📋 Lý do từ chối:</p>
+            <p className="text-sm text-destructive/90">{reason}</p>
+          </div>
         </div>
       );
     }
@@ -617,7 +694,7 @@ const MessagingSystem = ({
     if (imageMatch) {
       return (
         <img src={imageMatch[1]} alt="Ảnh" className="max-w-full rounded-lg max-h-64 object-contain cursor-pointer"
-          onClick={() => window.open(imageMatch[1], '_blank')} />
+          onClick={() => setViewImageUrl(imageMatch[1])} />
       );
     }
 
@@ -702,7 +779,6 @@ const MessagingSystem = ({
     const touch = e.changedTouches[0];
     const dx = touch.clientX - swipeRef.current.startX;
     const dy = Math.abs(touch.clientY - swipeRef.current.startY);
-    // Swipe threshold: 60px horizontal, less than 40px vertical
     if (Math.abs(dx) > 60 && dy < 40) {
       handleReplyMessage(msg);
     }
@@ -995,7 +1071,7 @@ const MessagingSystem = ({
         )}
       </DialogContent>
 
-      {/* Payment Dialog */}
+      {/* Payment Request Dialog (Admin sends) */}
       <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
         <DialogContent>
           <DialogHeader><DialogTitle>Gửi yêu cầu thanh toán</DialogTitle></DialogHeader>
@@ -1018,12 +1094,87 @@ const MessagingSystem = ({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Pay Bill Upload Dialog */}
+      <Dialog open={showPayBillDialog} onOpenChange={setShowPayBillDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Xác nhận thanh toán</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">Tải ảnh bill/biên lai thanh toán lên để xác nhận</p>
+            <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
+              <input
+                type="file"
+                id="billUpload"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => setPayBillFile(e.target.files?.[0] || null)}
+              />
+              <label htmlFor="billUpload" className="cursor-pointer">
+                {payBillFile ? (
+                  <div className="flex items-center justify-center gap-2 text-green-600">
+                    <Upload className="w-5 h-5" />
+                    <span className="text-sm font-medium">{payBillFile.name}</span>
+                  </div>
+                ) : (
+                  <div className="text-muted-foreground">
+                    <Upload className="w-8 h-8 mx-auto mb-2" />
+                    <span className="text-sm">Nhấn để tải bill lên</span>
+                  </div>
+                )}
+              </label>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => { setShowPayBillDialog(false); setPayBillFile(null); }} className="flex-1">Hủy</Button>
+              <Button onClick={handlePayBillUpload} disabled={!payBillFile || uploadingBill} className="flex-1">
+                {uploadingBill ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+                Gửi xác nhận
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject Payment Dialog */}
+      <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-destructive">Từ chối thanh toán</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Lý do từ chối (tùy chọn)</Label>
+              <Textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Nhập lý do từ chối..."
+                rows={3}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => { setShowRejectDialog(false); setRejectReason(''); }} className="flex-1">Hủy</Button>
+              <Button variant="destructive" onClick={handlePaymentReject} className="flex-1">
+                ❌ Xác nhận từ chối
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
 
     {selectedUser && (
       <ConversationReportDialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}
         reportedUserId={selectedUser.user_id} reportedUserName={selectedUser.full_name} />
     )}
+
+    {/* Fullscreen Image Viewer */}
+    <ImageViewer
+      src={viewImageUrl || ''}
+      alt="Ảnh"
+      open={!!viewImageUrl}
+      onOpenChange={(open) => { if (!open) setViewImageUrl(null); }}
+    />
     </>
   );
 };

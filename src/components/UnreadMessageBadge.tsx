@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/untypedClient';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,40 @@ const UnreadMessageBadge = ({ onClick }: UnreadMessageBadgeProps) => {
   const { user } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
   const channelRef = useRef<any>(null);
+  const audioEnabledRef = useRef(false);
+
+  // Play notification sound
+  const playSound = useCallback(() => {
+    if (!audioEnabledRef.current) return;
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const play = (delay: number) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 600;
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0.25, ctx.currentTime + delay);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + delay + 0.25);
+        osc.start(ctx.currentTime + delay);
+        osc.stop(ctx.currentTime + delay + 0.25);
+      };
+      play(0);
+      play(0.35);
+      setTimeout(() => ctx.close().catch(() => {}), 1000);
+    } catch (e) {
+      console.error('Sound error:', e);
+    }
+  }, []);
+
+  // Enable audio on first user interaction
+  useEffect(() => {
+    const enable = () => { audioEnabledRef.current = true; };
+    const events = ['click', 'touchstart', 'keydown'];
+    events.forEach(e => document.addEventListener(e, enable, { once: true }));
+    return () => { events.forEach(e => document.removeEventListener(e, enable)); };
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -40,6 +74,7 @@ const UnreadMessageBadge = ({ onClick }: UnreadMessageBadgeProps) => {
         (payload: any) => {
           if (payload.new.receiver_id === user.id && !payload.new.is_read) {
             setUnreadCount(prev => prev + 1);
+            playSound();
           }
         }
       )
@@ -61,7 +96,7 @@ const UnreadMessageBadge = ({ onClick }: UnreadMessageBadgeProps) => {
         supabase.removeChannel(channelRef.current);
       }
     };
-  }, [user]);
+  }, [user, playSound]);
 
   return (
     <Button variant="ghost" size="icon" onClick={onClick} title="Tin nhắn" className="relative">

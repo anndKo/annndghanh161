@@ -152,11 +152,13 @@ const SharedClassesButton = () => {
         return;
       }
 
-      const { error } = await supabase.from('class_requests').insert({
+      const insertData: any = {
         class_id: selectedClass.id,
         tutor_id: user.id,
-        note: note.trim() || null,
-      });
+      };
+      if (note.trim()) insertData.note = note.trim();
+      
+      const { error } = await supabase.from('class_requests').insert(insertData);
 
       if (error) throw error;
 

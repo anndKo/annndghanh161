@@ -52,6 +52,7 @@ const ForgotPasswordDialog = ({ open, onOpenChange }: ForgotPasswordDialogProps)
         email: validated.email,
         content: validated.content,
         status: 'pending',
+        user_id: null,
       });
 
       if (error) throw error;

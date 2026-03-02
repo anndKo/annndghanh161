@@ -209,7 +209,10 @@ const SharedClassesButton = () => {
         variant="outline"
         size="sm"
         className="gap-2 relative"
-        onClick={() => setOpen(true)}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(true);
+        }}
       >
         <Briefcase className="w-4 h-4" />
         <span className="hidden sm:inline">Lớp đang trống</span>

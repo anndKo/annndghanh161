@@ -89,10 +89,12 @@ const ForgotPasswordDialog = ({ open, onOpenChange }: ForgotPasswordDialogProps)
         });
         setErrors(newErrors);
       } else {
+        const message = error instanceof Error ? error.message : 'Không rõ lỗi';
+        console.error('Forgot password submit failed:', error);
         toast({
           variant: 'destructive',
           title: 'Lỗi',
-          description: 'Không thể gửi yêu cầu. Vui lòng thử lại sau.',
+          description: `Không thể gửi yêu cầu. ${message}`,
         });
       }
     } finally {

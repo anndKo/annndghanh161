@@ -119,6 +119,7 @@ export type Database = {
           class_id: string
           created_at: string
           id: string
+          note: string | null
           status: string
           tutor_id: string
         }
@@ -126,6 +127,7 @@ export type Database = {
           class_id: string
           created_at?: string
           id?: string
+          note?: string | null
           status?: string
           tutor_id: string
         }
@@ -133,6 +135,7 @@ export type Database = {
           class_id?: string
           created_at?: string
           id?: string
+          note?: string | null
           status?: string
           tutor_id?: string
         }
@@ -372,22 +375,37 @@ export type Database = {
       }
       password_reset_requests: {
         Row: {
+          admin_response: string | null
+          content: string | null
           created_at: string
+          email: string | null
+          full_name: string | null
           id: string
+          phone: string | null
           status: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
+          admin_response?: string | null
+          content?: string | null
           created_at?: string
+          email?: string | null
+          full_name?: string | null
           id?: string
+          phone?: string | null
           status?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
+          admin_response?: string | null
+          content?: string | null
           created_at?: string
+          email?: string | null
+          full_name?: string | null
           id?: string
+          phone?: string | null
           status?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: []
       }

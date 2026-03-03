@@ -130,6 +130,7 @@ const MessagingSystem = ({
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   // Reply state
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Payment dialog state
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
@@ -534,6 +535,10 @@ const MessagingSystem = ({
       
       setNewMessage('');
       setReplyingTo(null);
+      // Reset textarea height
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+      }
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Lỗi', description: 'Không thể gửi tin nhắn' });
     }
@@ -556,13 +561,13 @@ const MessagingSystem = ({
     setEditingMessage(msg);
     setReplyingTo(null);
     setNewMessage(msg.content);
-    setTimeout(() => inputRef.current?.focus(), 50);
+    setTimeout(() => textareaRef.current?.focus(), 50);
   };
 
   const handleReplyMessage = (msg: Message) => {
     setReplyingTo(msg);
     setEditingMessage(null);
-    setTimeout(() => inputRef.current?.focus(), 50);
+    setTimeout(() => textareaRef.current?.focus(), 50);
   };
 
   const scrollToMessage = (msgId: string) => {
@@ -1255,10 +1260,10 @@ const MessagingSystem = ({
             )}
 
             {/* Message Input */}
-            <div className="p-3 border-t border-border bg-background sticky bottom-0 pb-safe">
+            <div className="p-2 border-t border-border bg-background sticky bottom-0 pb-safe" style={{ position: 'sticky', bottom: 0, zIndex: 10 }}>
               <input ref={fileInputRef} type="file" className="hidden" multiple
                 accept="image/jpeg,image/png,image/gif,image/webp,image/bmp,.doc,.docx,.xls,.xlsx,.ppt,.pptx" onChange={handleFileSelect} />
-              <form onSubmit={(e) => { e.preventDefault(); handleSendWithFiles(); }} className="flex gap-2 items-center">
+              <div className="flex gap-1.5 items-end">
                 <Button type="button" variant="ghost" size="icon" className="flex-shrink-0 h-9 w-9"
                   onClick={() => fileInputRef.current?.click()} disabled={uploading}>
                   {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
@@ -1269,13 +1274,36 @@ const MessagingSystem = ({
                     <CreditCard className="w-4 h-4" />
                   </Button>
                 )}
-                <Input ref={inputRef} placeholder="Nhập tin nhắn..." value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)} className="flex-1 rounded-full" />
-                <Button type="submit" size="icon" className="flex-shrink-0 h-9 w-9 rounded-full"
+                <Textarea
+                  ref={textareaRef}
+                  placeholder="Nhập tin nhắn..."
+                  value={newMessage}
+                  onChange={(e) => {
+                    setNewMessage(e.target.value);
+                    // Auto-resize textarea
+                    const el = e.target;
+                    el.style.height = 'auto';
+                    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+                  }}
+                  onKeyDown={(e) => {
+                    // On desktop: Enter sends, Shift+Enter newline
+                    // On mobile: Enter always inserts newline (user must tap Send button)
+                    const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                    if (e.key === 'Enter' && !e.shiftKey && !isMobile) {
+                      e.preventDefault();
+                      handleSendWithFiles();
+                    }
+                  }}
+                  className="flex-1 rounded-2xl min-h-[36px] max-h-[120px] py-2 px-3 text-sm resize-none overflow-y-auto scrollbar-thin"
+                  rows={1}
+                  style={{ scrollbarWidth: 'thin' }}
+                />
+                <Button type="button" size="icon" className="flex-shrink-0 h-9 w-9 rounded-full"
+                  onClick={() => handleSendWithFiles()}
                   disabled={(!newMessage.trim() && pendingFiles.length === 0) || uploading}>
                   <Send className="w-4 h-4" />
                 </Button>
-              </form>
+              </div>
             </div>
           </div>
         )}

@@ -439,6 +439,27 @@ export type Database = {
         }
         Relationships: []
       }
+      pinned_conversations: {
+        Row: {
+          created_at: string
+          id: string
+          pinned_user_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          pinned_user_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          pinned_user_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string

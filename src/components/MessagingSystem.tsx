@@ -263,12 +263,16 @@ const MessagingSystem = ({
     }
   }, [autoMessage, selectedUser, user, view]);
 
+  const lastMsgIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (selectedUser && user) {
       fetchMessages().then(() => {
-        setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-        }, 100);
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+          });
+        });
       });
 
       const channel = supabase
@@ -284,6 +288,10 @@ const MessagingSystem = ({
                 if (prev.some(m => m.id === newMsg.id)) return prev;
                 return [...prev, newMsg];
               });
+              // Scroll to bottom for new messages
+              setTimeout(() => {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+              }, 50);
               if (newMsg.sender_id !== user.id) {
                 playNotificationSound();
               }
@@ -303,14 +311,6 @@ const MessagingSystem = ({
       };
     }
   }, [selectedUser, user]);
-
-  useEffect(() => {
-    if (messages.length > 0) {
-      requestAnimationFrame(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      });
-    }
-  }, [messages.length, messages[messages.length - 1]?.id]);
 
   const scrollToBottom = () => {
     requestAnimationFrame(() => {
@@ -517,8 +517,21 @@ const MessagingSystem = ({
           : selectedUser.full_name;
       }
 
-      const { error } = await supabase.from('messages').insert(messageData);
+      const { data: insertedMsg, error } = await supabase.from('messages').insert(messageData).select().single();
       if (error) throw error;
+      
+      // Append locally immediately (realtime will deduplicate)
+      if (insertedMsg) {
+        setMessages(prev => {
+          if (prev.some(m => m.id === insertedMsg.id)) return prev;
+          return [...prev, insertedMsg as Message];
+        });
+        // Scroll to bottom after DOM update
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, 50);
+      }
+      
       setNewMessage('');
       setReplyingTo(null);
     } catch (error: any) {
@@ -636,9 +649,9 @@ const MessagingSystem = ({
       const imageUrls: string[] = [];
       const fileMessages: string[] = [];
 
-      // Upload all files with progress
-      for (const file of pendingFiles) {
-        const result = await uploadFileWithProgress(file);
+      // Upload all files in parallel
+      const results = await Promise.all(pendingFiles.map(file => uploadFileWithProgress(file)));
+      for (const result of results) {
         if (result) {
           if (result.isImage) {
             imageUrls.push(result.url);
@@ -1204,20 +1217,20 @@ const MessagingSystem = ({
             {/* Pending Files Preview */}
             {pendingFiles.length > 0 && (
               <div className="px-3 pt-2 border-t border-border bg-muted/20">
-                <div className="flex gap-2 mb-2 overflow-x-auto max-h-[100px] pb-1 scrollbar-hide">
+              <div className="flex gap-2 mb-2 overflow-x-auto max-h-[130px] pb-1 scrollbar-hide">
                   {pendingFiles.map((file, idx) => {
                     const fileKey = file.name + file.size;
                     const progress = uploadProgress.get(fileKey);
                     const isImage = file.type.startsWith('image/');
                     const previewUrl = isImage ? URL.createObjectURL(file) : '';
                     return (
-                      <div key={idx} className="relative group rounded-lg border border-border bg-background p-1.5 flex-shrink-0 w-[72px]">
+                      <div key={idx} className="relative rounded-lg border border-border bg-background p-1.5 flex-shrink-0 w-[80px]">
                         {isImage ? (
                           <img src={previewUrl} alt={file.name}
-                            className="w-full h-14 object-cover rounded cursor-pointer"
+                            className="w-full h-[72px] object-cover rounded cursor-pointer"
                             onClick={() => setStagingPreviewUrl(previewUrl)} />
                         ) : (
-                          <div className="flex flex-col items-center justify-center h-14">
+                          <div className="flex flex-col items-center justify-center h-[72px]">
                             <FileText className="w-5 h-5 text-primary" />
                             <p className="text-[8px] text-muted-foreground truncate w-full text-center mt-0.5">{file.name}</p>
                           </div>
@@ -1230,7 +1243,7 @@ const MessagingSystem = ({
                         )}
                         {!uploading && (
                           <button onClick={() => removePendingFile(idx)}
-                            className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground rounded-full w-4 h-4 flex items-center justify-center text-[10px]">
+                            className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs z-10 shadow-md">
                             <X className="w-3 h-3" />
                           </button>
                         )}

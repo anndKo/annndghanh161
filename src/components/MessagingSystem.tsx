@@ -238,14 +238,16 @@ const MessagingSystem = ({
         (payload: any) => {
           const msg = payload.new as Message;
           if (msg && (msg.sender_id === user.id || msg.receiver_id === user.id)) {
-            // Only refresh conversation list when viewing it (not in chat)
-            fetchConversations();
+            // Only refresh conversation list when NOT in chat view to avoid scroll reset
+            if (view === 'conversations') {
+              fetchConversations();
+            }
           }
         }
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [open, user, pinnedUserIds]);
+  }, [open, user, view]);
 
   useEffect(() => {
     if (autoMessage && selectedUser && user && view === 'chat') {
@@ -268,13 +270,27 @@ const MessagingSystem = ({
 
   useEffect(() => {
     if (selectedUser && user) {
-      fetchMessages().then(() => {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
+      // Fetch messages without setting loading to avoid scroll reset
+      const loadMessages = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('messages').select('*')
+            .or(`and(sender_id.eq.${user.id},receiver_id.eq.${selectedUser.user_id}),and(sender_id.eq.${selectedUser.user_id},receiver_id.eq.${user.id})`)
+            .order('created_at', { ascending: true });
+          if (error) throw error;
+          setMessages(data || []);
+          // Mark as read
+          supabase.from('messages').update({ is_read: true })
+            .eq('sender_id', selectedUser.user_id).eq('receiver_id', user.id).eq('is_read', false).then(() => {});
+          // Scroll to bottom after messages render
+          setTimeout(() => {
             messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-          });
-        });
-      });
+          }, 100);
+        } catch (error) {
+          console.error('Error fetching messages:', error);
+        }
+      };
+      loadMessages();
 
       const channel = supabase
         .channel(`messages-realtime-${user.id}-${selectedUser.user_id}`)
@@ -292,7 +308,7 @@ const MessagingSystem = ({
               // Scroll to bottom for new messages
               setTimeout(() => {
                 messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-              }, 50);
+              }, 100);
               if (newMsg.sender_id !== user.id) {
                 playNotificationSound();
               }
@@ -530,7 +546,7 @@ const MessagingSystem = ({
         // Scroll to bottom after DOM update
         setTimeout(() => {
           messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }, 50);
+        }, 100);
       }
       
       setNewMessage('');

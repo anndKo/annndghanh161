@@ -36,7 +36,9 @@ import {
   Pencil,
   Trash2,
   Upload,
+  Image as ImageIcon,
 } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -116,6 +118,8 @@ const MessagingSystem = ({
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<Map<string, number>>(new Map());
   const [view, setView] = useState<'conversations' | 'chat' | 'search'>('conversations');
   const [pinnedUserIds, setPinnedUserIds] = useState<Set<string>>(new Set());
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
@@ -143,8 +147,12 @@ const MessagingSystem = ({
   // Highlighted message for scroll-to-reply
   const [highlightedMsgId, setHighlightedMsgId] = useState<string | null>(null);
 
-  // Image viewer state
-  const [viewImageUrl, setViewImageUrl] = useState<string | null>(null);
+  // Image viewer state - gallery mode
+  const [viewImages, setViewImages] = useState<string[]>([]);
+  const [viewImageIndex, setViewImageIndex] = useState(0);
+
+  // Staging preview
+  const [stagingPreviewUrl, setStagingPreviewUrl] = useState<string | null>(null);
 
   // Initialize audio on first user interaction
   const initializeAudio = useCallback(() => {
@@ -220,6 +228,24 @@ const MessagingSystem = ({
     }
   }, [open, user, defaultReceiverId, defaultReceiverName]);
 
+  // Realtime subscription for conversation list updates
+  useEffect(() => {
+    if (!open || !user) return;
+    const channel = supabase
+      .channel(`conversations-realtime-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' },
+        (payload: any) => {
+          const msg = payload.new as Message;
+          if (msg && (msg.sender_id === user.id || msg.receiver_id === user.id)) {
+            // Only refresh conversation list when viewing it (not in chat)
+            fetchConversations();
+          }
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [open, user, pinnedUserIds]);
+
   useEffect(() => {
     if (autoMessage && selectedUser && user && view === 'chat') {
       const sendAutoMessage = async () => {
@@ -280,12 +306,32 @@ const MessagingSystem = ({
 
   useEffect(() => {
     if (messages.length > 0) {
-      scrollToBottom();
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      });
     }
-  }, [messages.length]);
+  }, [messages.length, messages[messages.length - 1]?.id]);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    });
+  };
+
+  const getMessagePreview = (msg: any, partnerId: string, partnerName: string): string => {
+    if (msg.is_recalled) return 'Tin nhắn đã được thu hồi';
+    const content = msg.content || '';
+    const isSentByMe = msg.sender_id === user?.id;
+    const imagesMatch = content.match(/\[IMAGES:(.+)\]/);
+    if (imagesMatch) {
+      const count = imagesMatch[1].split('|').length;
+      return isSentByMe ? `Bạn đã gửi ${count} ảnh` : `${partnerName} đã gửi ${count} ảnh`;
+    }
+    if (content.match(/\[IMAGE:.+\]/)) return isSentByMe ? 'Bạn đã gửi 1 ảnh' : `${partnerName} đã gửi 1 ảnh`;
+    if (content.match(/\[FILE:.+:.+\]/)) return isSentByMe ? 'Bạn đã gửi 1 tệp' : `${partnerName} đã gửi 1 tệp`;
+    if (content.match(/\[PAYMENT:.+:\d+\]/)) return isSentByMe ? 'Bạn đã gửi yêu cầu thanh toán' : `${partnerName} đã gửi yêu cầu thanh toán`;
+    if (content.match(/\[BILL:.+\]/)) return isSentByMe ? 'Bạn đã gửi xác nhận thanh toán' : `${partnerName} đã gửi xác nhận thanh toán`;
+    return content;
   };
 
   const fetchConversations = async () => {
@@ -328,11 +374,12 @@ const MessagingSystem = ({
         if (!conversationMap.has(partnerId)) {
           const profile = profileMap.get(partnerId);
           if (profile) {
+            const previewContent = getMessagePreview(msg, partnerId, profile.full_name);
             conversationMap.set(partnerId, {
               user_id: partnerId,
               full_name: profile.full_name,
               username: profile.username,
-              last_message: msg.is_recalled ? 'Tin nhắn đã được thu hồi' : msg.content,
+              last_message: previewContent,
               unread_count: msg.receiver_id === user.id && !msg.is_read ? 1 : 0,
               last_message_time: msg.created_at,
               role: roleMap.get(partnerId) || 'student',
@@ -514,25 +561,120 @@ const MessagingSystem = ({
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user || !selectedUser) return;
+  const ALLOWED_TYPES = [
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp',
+    'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  ];
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const validFiles = files.filter(f => ALLOWED_TYPES.includes(f.type));
+    const invalidFiles = files.filter(f => !ALLOWED_TYPES.includes(f.type));
+    if (invalidFiles.length > 0) {
+      toast({ variant: 'destructive', title: 'Định dạng không hỗ trợ', description: 'Chỉ cho phép ảnh, Word, Excel, PPT.' });
+    }
+    if (validFiles.length > 0) {
+      setPendingFiles(prev => [...prev, ...validFiles]);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removePendingFile = (index: number) => {
+    setPendingFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const uploadFileWithProgress = async (file: File): Promise<{ url: string; isImage: boolean; name: string } | null> => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${user!.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+    const fileKey = file.name + file.size;
+
+    try {
+      // Use XMLHttpRequest for progress tracking
+      return await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+        const url = `${supabaseUrl}/storage/v1/object/assignments/${fileName}`;
+
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const pct = Math.round((e.loaded / e.total) * 100);
+            setUploadProgress(prev => new Map(prev).set(fileKey, pct));
+          }
+        });
+
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            const { data: urlData } = supabase.storage.from('assignments').getPublicUrl(fileName);
+            resolve({ url: urlData.publicUrl, isImage: file.type.startsWith('image/'), name: file.name });
+          } else {
+            reject(new Error('Upload failed'));
+          }
+        });
+
+        xhr.addEventListener('error', () => reject(new Error('Upload error')));
+
+        xhr.open('POST', url);
+        xhr.setRequestHeader('Authorization', `Bearer ${supabaseKey}`);
+        xhr.setRequestHeader('apikey', supabaseKey);
+        xhr.setRequestHeader('x-upsert', 'true');
+        xhr.send(file);
+      });
+    } catch {
+      return null;
+    }
+  };
+
+  const handleSendWithFiles = async () => {
+    if (!user || !selectedUser) return;
+    if (!newMessage.trim() && pendingFiles.length === 0) return;
+
     setUploading(true);
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-      const { data, error } = await supabase.storage.from('assignments').upload(fileName, file);
-      if (error) throw error;
-      const { data: urlData } = supabase.storage.from('assignments').getPublicUrl(fileName);
-      const isImage = file.type.startsWith('image/');
-      const fileMessage = isImage ? `[IMAGE:${urlData.publicUrl}]` : `[FILE:${urlData.publicUrl}:${file.name}]`;
-      await sendMessage(fileMessage);
-      toast({ title: 'Đã tải lên', description: isImage ? 'Ảnh đã được gửi' : 'Tệp đã được gửi' });
+      const imageUrls: string[] = [];
+      const fileMessages: string[] = [];
+
+      // Upload all files with progress
+      for (const file of pendingFiles) {
+        const result = await uploadFileWithProgress(file);
+        if (result) {
+          if (result.isImage) {
+            imageUrls.push(result.url);
+          } else {
+            fileMessages.push(`[FILE:${result.url}:${result.name}]`);
+          }
+        }
+      }
+
+      // Send images as a single message if multiple
+      if (imageUrls.length > 0) {
+        if (imageUrls.length === 1) {
+          await sendMessage(`[IMAGE:${imageUrls[0]}]`);
+        } else {
+          await sendMessage(`[IMAGES:${imageUrls.join('|')}]`);
+        }
+      }
+
+      // Send each file as separate message
+      for (const fm of fileMessages) {
+        await sendMessage(fm);
+      }
+
+      // Send text message if any (and no files, or alongside files)
+      if (newMessage.trim() && pendingFiles.length === 0) {
+        await sendMessage();
+      } else if (newMessage.trim() && pendingFiles.length > 0) {
+        await sendMessage(newMessage.trim());
+      }
+
+      setPendingFiles([]);
+      setUploadProgress(new Map());
     } catch {
-      toast({ variant: 'destructive', title: 'Lỗi', description: 'Không thể tải tệp lên' });
+      toast({ variant: 'destructive', title: 'Lỗi', description: 'Không thể gửi tin nhắn' });
     } finally {
       setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -640,7 +782,7 @@ const MessagingSystem = ({
           <p className="text-sm font-medium">💳 Yêu cầu thanh toán</p>
           <img src={imageUrl} alt="QR thanh toán" 
             className="max-w-full rounded-lg max-h-48 object-contain cursor-pointer"
-            onClick={() => setViewImageUrl(imageUrl)} />
+            onClick={() => { setViewImages([imageUrl]); setViewImageIndex(0); }} />
           <p className="text-sm font-bold">{formatPrice(amount)}</p>
           {!isOwn && (
             <div className="flex flex-wrap gap-2 mt-2">
@@ -667,7 +809,7 @@ const MessagingSystem = ({
           <div className="relative">
             <img src={billUrl} alt="Bill thanh toán" 
               className="max-w-full rounded-lg max-h-48 object-contain cursor-pointer border border-border"
-              onClick={() => setViewImageUrl(billUrl)} />
+              onClick={() => { setViewImages([billUrl]); setViewImageIndex(0); }} />
             <Badge className="absolute top-1 left-1 text-[10px]">Bill</Badge>
           </div>
         </div>
@@ -690,11 +832,26 @@ const MessagingSystem = ({
       );
     }
 
+    // Multiple images
+    const imagesMatch = content.match(/\[IMAGES:(.+)\]/);
+    if (imagesMatch) {
+      const urls = imagesMatch[1].split('|');
+      return (
+        <div className="grid grid-cols-3 gap-1 max-w-[220px]">
+          {urls.map((url, i) => (
+            <img key={i} src={url} alt={`Ảnh ${i + 1}`}
+              className="w-full aspect-square object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => { setViewImages(urls); setViewImageIndex(i); }} />
+          ))}
+        </div>
+      );
+    }
+
     const imageMatch = content.match(/\[IMAGE:(.+)\]/);
     if (imageMatch) {
       return (
         <img src={imageMatch[1]} alt="Ảnh" className="max-w-full rounded-lg max-h-64 object-contain cursor-pointer"
-          onClick={() => setViewImageUrl(imageMatch[1])} />
+          onClick={() => { setViewImages([imageMatch[1]]); setViewImageIndex(0); }} />
       );
     }
 
@@ -703,7 +860,7 @@ const MessagingSystem = ({
       return (
         <a href={fileMatch[1]} target="_blank" rel="noopener noreferrer"
           className="flex items-center gap-2 p-2 bg-background/50 rounded-lg hover:bg-background/80">
-          <FileText className="w-8 h-8 text-blue-500" />
+          <FileText className="w-8 h-8 text-primary" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate">{fileMatch[2]}</p>
             <p className="text-xs opacity-70">Nhấn để tải</p>
@@ -713,7 +870,7 @@ const MessagingSystem = ({
       );
     }
 
-    return <p className="text-sm whitespace-pre-wrap break-words">{content}</p>;
+    return <p className="text-sm whitespace-pre-wrap break-words overflow-hidden">{content}</p>;
   };
 
   // Render reply block inside a sent message
@@ -992,7 +1149,7 @@ const MessagingSystem = ({
                         onTouchEnd={(e) => handleTouchEnd(e, msg)}
                       >
                         <div className={`flex items-center gap-1 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
-                          <div className={`max-w-[75%] rounded-2xl px-3 py-2 transition-all duration-200 ${
+                          <div className={`max-w-[70vw] sm:max-w-[75%] rounded-2xl px-3 py-2 transition-all duration-200 overflow-hidden break-words [word-break:break-word] ${
                             msg.is_recalled
                               ? 'bg-muted/50 border border-border'
                               : isOwn
@@ -1044,11 +1201,51 @@ const MessagingSystem = ({
               </div>
             )}
 
+            {/* Pending Files Preview */}
+            {pendingFiles.length > 0 && (
+              <div className="px-3 pt-2 border-t border-border bg-muted/20">
+                <div className="flex gap-2 mb-2 overflow-x-auto max-h-[100px] pb-1 scrollbar-hide">
+                  {pendingFiles.map((file, idx) => {
+                    const fileKey = file.name + file.size;
+                    const progress = uploadProgress.get(fileKey);
+                    const isImage = file.type.startsWith('image/');
+                    const previewUrl = isImage ? URL.createObjectURL(file) : '';
+                    return (
+                      <div key={idx} className="relative group rounded-lg border border-border bg-background p-1.5 flex-shrink-0 w-[72px]">
+                        {isImage ? (
+                          <img src={previewUrl} alt={file.name}
+                            className="w-full h-14 object-cover rounded cursor-pointer"
+                            onClick={() => setStagingPreviewUrl(previewUrl)} />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center h-14">
+                            <FileText className="w-5 h-5 text-primary" />
+                            <p className="text-[8px] text-muted-foreground truncate w-full text-center mt-0.5">{file.name}</p>
+                          </div>
+                        )}
+                        {progress !== undefined && (
+                          <div className="absolute inset-0 bg-black/40 rounded flex flex-col items-center justify-center">
+                            <p className="text-white text-[10px] font-bold">{progress}%</p>
+                            <Progress value={progress} className="w-3/4 h-1 mt-0.5" />
+                          </div>
+                        )}
+                        {!uploading && (
+                          <button onClick={() => removePendingFile(idx)}
+                            className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground rounded-full w-4 h-4 flex items-center justify-center text-[10px]">
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Message Input */}
             <div className="p-3 border-t border-border bg-background sticky bottom-0 pb-safe">
-              <input ref={fileInputRef} type="file" className="hidden"
-                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.zip,.rar" onChange={handleFileUpload} />
-              <form onSubmit={(e) => { e.preventDefault(); sendMessage(); }} className="flex gap-2 items-center">
+              <input ref={fileInputRef} type="file" className="hidden" multiple
+                accept="image/jpeg,image/png,image/gif,image/webp,image/bmp,.doc,.docx,.xls,.xlsx,.ppt,.pptx" onChange={handleFileSelect} />
+              <form onSubmit={(e) => { e.preventDefault(); handleSendWithFiles(); }} className="flex gap-2 items-center">
                 <Button type="button" variant="ghost" size="icon" className="flex-shrink-0 h-9 w-9"
                   onClick={() => fileInputRef.current?.click()} disabled={uploading}>
                   {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
@@ -1062,7 +1259,7 @@ const MessagingSystem = ({
                 <Input ref={inputRef} placeholder="Nhập tin nhắn..." value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)} className="flex-1 rounded-full" />
                 <Button type="submit" size="icon" className="flex-shrink-0 h-9 w-9 rounded-full"
-                  disabled={!newMessage.trim() || uploading}>
+                  disabled={(!newMessage.trim() && pendingFiles.length === 0) || uploading}>
                   <Send className="w-4 h-4" />
                 </Button>
               </form>
@@ -1168,13 +1365,30 @@ const MessagingSystem = ({
         reportedUserId={selectedUser.user_id} reportedUserName={selectedUser.full_name} />
     )}
 
-    {/* Fullscreen Image Viewer */}
+    {/* Fullscreen Image Viewer - Gallery Mode */}
     <ImageViewer
-      src={viewImageUrl || ''}
+      images={viewImages}
+      initialIndex={viewImageIndex}
       alt="Ảnh"
-      open={!!viewImageUrl}
-      onOpenChange={(open) => { if (!open) setViewImageUrl(null); }}
+      open={viewImages.length > 0}
+      onOpenChange={(open) => { if (!open) { setViewImages([]); setViewImageIndex(0); } }}
     />
+
+    {/* Staging file preview */}
+    {stagingPreviewUrl && (
+      <Dialog open={!!stagingPreviewUrl} onOpenChange={() => setStagingPreviewUrl(null)}>
+        <DialogContent className="max-w-[95vw] max-h-[95vh] p-0 bg-black/95 border-none">
+          <div className="relative flex items-center justify-center min-h-[50vh]">
+            <Button variant="ghost" size="icon"
+              className="absolute top-3 right-3 z-50 bg-black/50 hover:bg-black/70 text-white"
+              onClick={() => setStagingPreviewUrl(null)}>
+              <X className="w-5 h-5" />
+            </Button>
+            <img src={stagingPreviewUrl} alt="Preview" className="max-w-full max-h-[90vh] object-contain" />
+          </div>
+        </DialogContent>
+      </Dialog>
+    )}
     </>
   );
 };

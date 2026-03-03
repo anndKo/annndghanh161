@@ -27,8 +27,10 @@ import {
   MapPin,
   Send,
   DollarSign,
+  Search,
 } from 'lucide-react';
 import UnreadMessageBadge from '@/components/UnreadMessageBadge';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 
 const DAY_LABELS: { [key: string]: string } = {
@@ -88,6 +90,8 @@ const TutorDashboard = () => {
   const [messagingReceiver, setMessagingReceiver] = useState<{ id: string; name: string } | null>(null);
   const [paymentRequestOpen, setPaymentRequestOpen] = useState(false);
   const [revenueOpen, setRevenueOpen] = useState(false);
+  const [classSearchQuery, setClassSearchQuery] = useState('');
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
 
   // Listen for openMessaging event
   useEffect(() => {
@@ -310,6 +314,18 @@ const TutorDashboard = () => {
 
   const totalStudents = Object.values(classEnrollments).reduce((sum, arr) => sum + arr.length, 0);
 
+  // Filter classes based on search query
+  const filteredClasses = classes.filter((c) => {
+    if (!classSearchQuery.trim()) return true;
+    const q = classSearchQuery.toLowerCase();
+    const matchId = (c.display_id || '').toLowerCase().includes(q);
+    const matchName = c.name.toLowerCase().includes(q);
+    const matchStudents = (classEnrollments[c.id] || []).some(s => 
+      (s.student_name || '').toLowerCase().includes(q)
+    );
+    return matchId || matchName || matchStudents;
+  });
+
   // Approved - Full dashboard
   return (
     <div className="min-h-screen bg-background">
@@ -414,8 +430,31 @@ const TutorDashboard = () => {
           <TabsContent value="classes">
             <Card>
               <CardHeader>
-                <CardTitle>Lớp học của tôi</CardTitle>
-                <CardDescription>Danh sách các lớp bạn đang phụ trách</CardDescription>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <CardTitle>Lớp học của tôi</CardTitle>
+                    <CardDescription>Danh sách các lớp bạn đang phụ trách</CardDescription>
+                  </div>
+                  {classes.length > 0 && (
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <div className="relative flex-1 sm:w-56">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Tìm ID lớp, tên, học viên..."
+                          value={classSearchQuery}
+                          onChange={(e) => { setClassSearchQuery(e.target.value); setSelectedClassId(null); }}
+                          className="pl-8 h-9 text-sm"
+                        />
+                      </div>
+                      {classSearchQuery && (
+                        <Button variant="ghost" size="sm" className="h-9 px-2 flex-shrink-0"
+                          onClick={() => setClassSearchQuery('')}>
+                          Tất cả
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 {classes.length === 0 ? (
@@ -424,9 +463,15 @@ const TutorDashboard = () => {
                     <p>Bạn chưa được phân công lớp nào</p>
                     <p className="text-sm">Admin sẽ gán lớp cho bạn khi có lớp phù hợp</p>
                   </div>
+                ) : filteredClasses.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Search className="w-10 h-10 mx-auto mb-3 opacity-50" />
+                    <p>Không tìm thấy lớp phù hợp</p>
+                    <p className="text-sm">Thử từ khóa khác</p>
+                  </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {classes.map((classItem) => (
+                    {filteredClasses.map((classItem) => (
                       <Card 
                         key={classItem.id} 
                         className="hover:shadow-md transition-shadow cursor-pointer"

@@ -188,6 +188,7 @@ const StudentDashboard = () => {
     subjects: [],
   });
   const [searchFiltersOpen, setSearchFiltersOpen] = useState(false);
+  const [nearbyModalOpen, setNearbyModalOpen] = useState(false);
   // Listen for openMessaging event
   useEffect(() => {
     const handleOpenMessaging = (event: CustomEvent<{ partnerId: string; partnerName: string }>) => {

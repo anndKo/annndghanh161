@@ -171,10 +171,11 @@ const Index = () => {
                 <span className="text-accent-foreground">Nền tảng gia sư #1 Việt Nam</span>
               </div>
               <h1 
-                className="font-bold whitespace-nowrap text-left"
-                style={{ fontSize: 'clamp(20px, 3vw, 42px)', lineHeight: 1.2 }}
+                className="font-bold text-left"
+                style={{ fontSize: 'clamp(20px, 5vw, 56px)', lineHeight: 1.2 }}
               >
-                Học tập hiệu quả cùng <span className="text-gradient">gia sư chất lượng</span>
+                <span className="block whitespace-nowrap">Học tập hiệu quả cùng</span>
+                <span className="block whitespace-nowrap text-gradient">gia sư chất lượng</span>
               </h1>
               <p className="text-base md:text-lg text-muted-foreground max-w-lg">
                 Kết nối với đội ngũ gia sư giỏi, được xác minh kỹ lưỡng. 

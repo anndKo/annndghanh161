@@ -121,6 +121,8 @@ interface Enrollment {
   enrolled_at: string;
   student_name?: string;
   class_name?: string;
+  enrollment_expires_at?: string | null;
+  enrollment_type?: string | null;
 }
 
 // Image component with fallback, retry logic, and click to view fullscreen
@@ -300,6 +302,7 @@ const AdminDashboard = () => {
   // Enrollment request dialog
   const [enrollmentRequestOpen, setEnrollmentRequestOpen] = useState(false);
   const [selectedStudentForRequest, setSelectedStudentForRequest] = useState<{ id: string; name: string } | null>(null);
+  const [selectedClassForEnrollmentRequest, setSelectedClassForEnrollmentRequest] = useState<string | null>(null);
   const [enrollmentApprovalOpen, setEnrollmentApprovalOpen] = useState(false);
   const [attendanceStatsOpen, setAttendanceStatsOpen] = useState(false);
   const [passwordResetOpen, setPasswordResetOpen] = useState(false);
@@ -380,7 +383,8 @@ const AdminDashboard = () => {
       const { data, error } = await supabase
         .from('enrollments')
         .select('*, classes(name)')
-        .order('enrolled_at', { ascending: false });
+        .order('enrolled_at', { ascending: false })
+        .limit(1000);
 
       if (error) throw error;
 
@@ -1007,20 +1011,12 @@ const AdminDashboard = () => {
                                 id: enrollment.student_id,
                                 name: enrollment.student_name || 'Học viên'
                               });
+                              setSelectedClassForEnrollmentRequest(enrollment.class_id);
                               setEnrollmentRequestOpen(true);
                             }}
                           >
                             <Send className="w-4 h-4 mr-1" />
                             Gửi yêu cầu
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-success border-success hover:bg-success hover:text-success-foreground"
-                            onClick={() => handleApproveEnrollment(enrollment)}
-                          >
-                            <CheckCircle2 className="w-4 h-4 mr-1" />
-                            Duyệt
                           </Button>
                           <Button
                             size="sm"
@@ -1067,6 +1063,7 @@ const AdminDashboard = () => {
                           <TableHead>Môn</TableHead>
                           <TableHead>Lớp</TableHead>
                           <TableHead>Học phí</TableHead>
+                          <TableHead>Thời gian học</TableHead>
                           <TableHead>Loại</TableHead>
                           <TableHead className="text-right">Thao tác</TableHead>
                         </TableRow>
@@ -1081,6 +1078,23 @@ const AdminDashboard = () => {
                             <TableCell>{classItem.subject}</TableCell>
                             <TableCell>{classItem.grade}</TableCell>
                             <TableCell>{formatPrice(classItem.price_per_session)}</TableCell>
+                            <TableCell>
+                              {(() => {
+                                // Find nearest expiry from approved enrollments for this class
+                                const classEnrollments = enrollments.filter(
+                                  e => e.class_id === classItem.id && e.status === 'approved' && e.enrollment_expires_at
+                                );
+                                if (classEnrollments.length === 0) return <span className="text-muted-foreground text-xs">—</span>;
+                                const nearest = classEnrollments.reduce((min, e) => {
+                                  const exp = new Date(e.enrollment_expires_at!).getTime();
+                                  return exp < min ? exp : min;
+                                }, Infinity);
+                                const daysLeft = Math.ceil((nearest - Date.now()) / (1000 * 60 * 60 * 24));
+                                if (daysLeft <= 0) return <Badge variant="destructive" className="text-xs">Hết hạn</Badge>;
+                                if (daysLeft <= 7) return <Badge variant="destructive" className="text-xs animate-pulse">{daysLeft} ngày</Badge>;
+                                return <Badge variant="outline" className="text-xs">{daysLeft} ngày</Badge>;
+                              })()}
+                            </TableCell>
                             <TableCell>
                               <Badge variant="outline">
                                 {classItem.class_type === 'one_on_one' ? '1 kèm 1' : 'Nhóm'}
@@ -1403,9 +1417,13 @@ const AdminDashboard = () => {
       {selectedStudentForRequest && (
         <AdminEnrollmentRequestDialog
           open={enrollmentRequestOpen}
-          onOpenChange={setEnrollmentRequestOpen}
+          onOpenChange={(open) => {
+            setEnrollmentRequestOpen(open);
+            if (!open) setSelectedClassForEnrollmentRequest(null);
+          }}
           studentId={selectedStudentForRequest.id}
           studentName={selectedStudentForRequest.name}
+          defaultClassId={selectedClassForEnrollmentRequest || undefined}
         />
       )}
 

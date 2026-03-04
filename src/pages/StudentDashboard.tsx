@@ -524,6 +524,46 @@ const StudentDashboard = () => {
                   <div className="mt-4">
                     <ClassFilterPanel onFilterChange={setAdvancedFilters} />
                   </div>
+                  {/* Nearby classes button */}
+                  <div className="mt-4">
+                    <Button
+                      variant="outline"
+                      className="gap-2"
+                      onClick={() => {
+                        if (!navigator.geolocation) {
+                          toast({ variant: 'destructive', title: 'Lỗi', description: 'Trình duyệt không hỗ trợ định vị' });
+                          return;
+                        }
+                        navigator.geolocation.getCurrentPosition(
+                          (pos) => {
+                            const { latitude, longitude } = pos.coords;
+                            const nearby = classes
+                              .filter((c: any) => c.latitude && c.longitude)
+                              .map((c: any) => {
+                                const R = 6371;
+                                const dLat = (c.latitude - latitude) * Math.PI / 180;
+                                const dLon = (c.longitude - longitude) * Math.PI / 180;
+                                const a = Math.sin(dLat/2)**2 + Math.cos(latitude*Math.PI/180)*Math.cos(c.latitude*Math.PI/180)*Math.sin(dLon/2)**2;
+                                const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                                return { ...c, _distance: dist };
+                              })
+                              .sort((a: any, b: any) => a._distance - b._distance);
+                            if (nearby.length === 0) {
+                              toast({ variant: 'destructive', title: 'Không tìm thấy', description: 'Không có lớp nào có vị trí gần bạn' });
+                            } else {
+                              setClasses(nearby as ClassItem[]);
+                              toast({ title: `Tìm thấy ${nearby.length} lớp gần bạn` });
+                            }
+                          },
+                          () => toast({ variant: 'destructive', title: 'Lỗi', description: 'Không thể lấy vị trí. Vui lòng cho phép truy cập.' }),
+                          { enableHighAccuracy: true }
+                        );
+                      }}
+                    >
+                      <MapPin className="w-4 h-4" />
+                      Tìm lớp gần đây
+                    </Button>
+                  </div>
                 </CardContent>
               )}
             </Card>
@@ -531,11 +571,11 @@ const StudentDashboard = () => {
             {filteredClasses.length === 0 ? (
               <Card><CardContent className="py-12 text-center text-muted-foreground"><BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" /><p>Chưa có lớp học nào</p></CardContent></Card>
             ) : (
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredClasses.map((classItem) => {
                   const enrollStatus = getEnrollmentStatus(classItem.id);
                   return (
-                    <Card key={classItem.id} className="hover:shadow-lg transition-shadow">
+                    <Card key={classItem.id} className="hover:shadow-lg transition-shadow overflow-hidden">
                       <CardHeader>
                         <div className="flex items-start justify-between">
                           <div>
@@ -567,7 +607,7 @@ const StudentDashboard = () => {
                             )}
                           </div>
                         )}
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
                           {/* Price with discount display */}
                           {classItem.discount_percent && classItem.discount_percent > 0 ? (
                             <div className="flex flex-col">

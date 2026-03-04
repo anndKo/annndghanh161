@@ -171,8 +171,8 @@ const Index = () => {
                 <span className="text-accent-foreground">Nền tảng gia sư #1 Việt Nam</span>
               </div>
               <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold leading-tight">
-                Học tập hiệu quả cùng{' '}
-                <span className="text-gradient">gia sư chất lượng</span>
+                <span className="block">Học tập hiệu quả cùng</span>
+                <span className="block text-gradient">gia sư chất lượng</span>
               </h1>
               <p className="text-base md:text-lg text-muted-foreground max-w-lg">
                 Kết nối với đội ngũ gia sư giỏi, được xác minh kỹ lưỡng. 
@@ -244,7 +244,7 @@ const Index = () => {
 
           {/* Search Filters - below title */}
           <div className="mb-6">
-            <div className="flex justify-center mb-4">
+            <div className="flex justify-center gap-2 mb-4">
               <Button
                 variant={searchFiltersOpen ? 'default' : 'outline'}
                 onClick={() => setSearchFiltersOpen(!searchFiltersOpen)}
@@ -253,6 +253,48 @@ const Index = () => {
                 <Search className="w-4 h-4" />
                 {searchFiltersOpen ? 'Thu bộ lọc' : 'Tìm kiếm'}
                 {searchFiltersOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </Button>
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={() => {
+                  if (!navigator.geolocation) {
+                    alert('Trình duyệt không hỗ trợ định vị');
+                    return;
+                  }
+                  navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                      const { latitude, longitude } = pos.coords;
+                      // Filter classes by distance
+                      const nearby = classes
+                        .filter((c: any) => c.latitude && c.longitude)
+                        .map((c: any) => {
+                          const R = 6371;
+                          const dLat = (c.latitude - latitude) * Math.PI / 180;
+                          const dLon = (c.longitude - longitude) * Math.PI / 180;
+                          const a = Math.sin(dLat/2)**2 + Math.cos(latitude*Math.PI/180)*Math.cos(c.latitude*Math.PI/180)*Math.sin(dLon/2)**2;
+                          const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                          return { ...c, _distance: dist };
+                        })
+                        .sort((a: any, b: any) => a._distance - b._distance);
+                      if (nearby.length === 0) {
+                        alert('Không tìm thấy lớp nào có vị trí gần bạn');
+                      } else {
+                        setSearchQuery('');
+                        setSubjectFilter('all');
+                        setGradeFilter('all');
+                        setFormatFilter('all');
+                        // Store nearby results
+                        setClasses(nearby);
+                      }
+                    },
+                    () => alert('Không thể lấy vị trí. Vui lòng cho phép truy cập vị trí.'),
+                    { enableHighAccuracy: true }
+                  );
+                }}
+              >
+                <MapPin className="w-4 h-4" />
+                Tìm lớp gần đây
               </Button>
             </div>
             {searchFiltersOpen && (
@@ -301,6 +343,7 @@ const Index = () => {
           ) : (
             <div className="max-h-[800px] overflow-y-auto pr-1">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Show distance if available */}
                 {filteredClasses.map((classItem: any) => (
                   <Card key={classItem.id} className="overflow-hidden hover:shadow-lg transition-shadow border border-border flex flex-col">
                     <CardContent className="p-4 flex flex-col flex-1 gap-3">

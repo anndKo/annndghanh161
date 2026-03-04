@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/untypedClient';
 import ClassFilterPanel, { FilterState } from '@/components/ClassFilterPanel';
 import { formatPriceDisplay } from '@/lib/formatPrice';
+import NearbyClassSearchModal from '@/components/NearbyClassSearchModal';
 import { 
   GraduationCap, 
   Users, 

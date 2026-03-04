@@ -279,9 +279,11 @@ const MessagingSystem = ({
             .order('created_at', { ascending: true });
           if (error) throw error;
           setMessages(data || []);
-          // Mark as read
+          // Mark as read and dispatch event for badge update
           supabase.from('messages').update({ is_read: true })
-            .eq('sender_id', selectedUser.user_id).eq('receiver_id', user.id).eq('is_read', false).then(() => {});
+            .eq('sender_id', selectedUser.user_id).eq('receiver_id', user.id).eq('is_read', false).then(() => {
+              window.dispatchEvent(new Event('messagesRead'));
+            });
           // Scroll to bottom after messages render
           setTimeout(() => {
             messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
@@ -458,6 +460,7 @@ const MessagingSystem = ({
       setMessages(data || []);
       await supabase.from('messages').update({ is_read: true })
         .eq('sender_id', selectedUser.user_id).eq('receiver_id', user.id).eq('is_read', false);
+      window.dispatchEvent(new Event('messagesRead'));
     } catch (error) {
       console.error('Error fetching messages:', error);
     } finally {
@@ -871,10 +874,10 @@ const MessagingSystem = ({
     if (imagesMatch) {
       const urls = imagesMatch[1].split('|');
       return (
-        <div className="grid grid-cols-3 gap-1 max-w-[220px]">
+        <div className="grid grid-cols-3 gap-1.5 max-w-[240px]">
           {urls.map((url, i) => (
             <img key={i} src={url} alt={`Ảnh ${i + 1}`}
-              className="w-full aspect-square object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
+              className="w-full aspect-square object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity border-2 border-border/60"
               onClick={() => { setViewImages(urls); setViewImageIndex(i); }} />
           ))}
         </div>
@@ -884,7 +887,7 @@ const MessagingSystem = ({
     const imageMatch = content.match(/\[IMAGE:(.+)\]/);
     if (imageMatch) {
       return (
-        <img src={imageMatch[1]} alt="Ảnh" className="max-w-full rounded-lg max-h-64 object-contain cursor-pointer"
+        <img src={imageMatch[1]} alt="Ảnh" className="max-w-full rounded-lg max-h-64 object-contain cursor-pointer border-2 border-border/60"
           onClick={() => { setViewImages([imageMatch[1]]); setViewImageIndex(0); }} />
       );
     }
@@ -1187,8 +1190,8 @@ const MessagingSystem = ({
                             msg.is_recalled
                               ? 'bg-muted/50 border border-border'
                               : isOwn
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-muted'
+                                ? 'bg-primary/90 text-primary-foreground'
+                                : 'bg-accent text-accent-foreground border border-border/40'
                           } ${isHighlighted ? 'ring-2 ring-primary/50 shadow-lg' : ''}`}
                           >
                             {renderReplyBlock(msg)}

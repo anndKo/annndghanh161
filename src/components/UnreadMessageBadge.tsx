@@ -82,6 +82,7 @@ const UnreadMessageBadge = ({ onClick }: UnreadMessageBadgeProps) => {
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'messages' },
         (payload: any) => {
+          // When messages are marked as read (by current user reading them)
           if (payload.new.receiver_id === user.id && payload.new.is_read && !payload.old?.is_read) {
             setUnreadCount(prev => Math.max(0, prev - 1));
           }
@@ -91,10 +92,17 @@ const UnreadMessageBadge = ({ onClick }: UnreadMessageBadgeProps) => {
 
     channelRef.current = channel;
 
+    // Also listen for custom event when user reads messages in MessagingSystem
+    const handleMessagesRead = () => {
+      fetchUnread();
+    };
+    window.addEventListener('messagesRead', handleMessagesRead);
+
     return () => {
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
       }
+      window.removeEventListener('messagesRead', handleMessagesRead);
     };
   }, [user, playSound]);
 

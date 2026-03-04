@@ -26,15 +26,14 @@ const ReEnrollButton = ({ classId, className, classDisplayId, onSuccess }: ReEnr
     setLoading(true);
     try {
       // Check if there's already a pending enrollment
-      const { data: existingEnrollment } = await supabase
+      const { data: existingEnrollments } = await supabase
         .from('enrollments')
         .select('id, status')
         .eq('class_id', classId)
-        .eq('student_id', user.id)
-        .eq('status', 'pending')
-        .single();
+        .eq('student_id', user.id);
 
-      if (existingEnrollment) {
+      const hasPending = existingEnrollments?.some(e => e.status === 'pending');
+      if (hasPending) {
         toast({
           variant: 'destructive',
           title: 'Đã có yêu cầu',
@@ -43,6 +42,26 @@ const ReEnrollButton = ({ classId, className, classDisplayId, onSuccess }: ReEnr
         return;
       }
 
+      // Delete ALL non-approved old enrollments to avoid unique constraint
+      const toDelete = existingEnrollments?.filter(e => e.status !== 'approved') || [];
+      for (const e of toDelete) {
+        await supabase.from('enrollments').delete().eq('id', e.id);
+      }
+
+      // If there's still an approved but expired enrollment, delete it too
+      const stillApproved = existingEnrollments?.find(e => e.status === 'approved');
+      if (stillApproved) {
+        await supabase.from('enrollments').delete().eq('id', stillApproved.id);
+      }
+
+      // Delete ALL old enrollments (any status) to avoid unique constraint
+      await supabase
+        .from('enrollments')
+        .delete()
+        .eq('class_id', classId)
+        .eq('student_id', user.id)
+        .in('status', ['removed', 'expired', 'rejected']);
+
       // Create new enrollment request
       const { error: enrollError } = await supabase
         .from('enrollments')
@@ -50,6 +69,7 @@ const ReEnrollButton = ({ classId, className, classDisplayId, onSuccess }: ReEnr
           class_id: classId,
           student_id: user.id,
           status: 'pending',
+          enrollment_type: 'real',
         });
 
       if (enrollError) throw enrollError;

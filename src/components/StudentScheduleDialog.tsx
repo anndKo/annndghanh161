@@ -28,14 +28,23 @@ interface StudentScheduleDialogProps {
 }
 
 const DAYS_OF_WEEK = [
-  { key: 'monday', label: 'Thứ 2' },
-  { key: 'tuesday', label: 'Thứ 3' },
-  { key: 'wednesday', label: 'Thứ 4' },
-  { key: 'thursday', label: 'Thứ 5' },
-  { key: 'friday', label: 'Thứ 6' },
-  { key: 'saturday', label: 'Thứ 7' },
-  { key: 'sunday', label: 'CN' },
+  { key: 'monday', label: 'Thứ 2', aliases: ['thứ 2', 'thu 2', 'monday', 't2'] },
+  { key: 'tuesday', label: 'Thứ 3', aliases: ['thứ 3', 'thu 3', 'tuesday', 't3'] },
+  { key: 'wednesday', label: 'Thứ 4', aliases: ['thứ 4', 'thu 4', 'wednesday', 't4'] },
+  { key: 'thursday', label: 'Thứ 5', aliases: ['thứ 5', 'thu 5', 'thursday', 't5'] },
+  { key: 'friday', label: 'Thứ 6', aliases: ['thứ 6', 'thu 6', 'friday', 't6'] },
+  { key: 'saturday', label: 'Thứ 7', aliases: ['thứ 7', 'thu 7', 'saturday', 't7'] },
+  { key: 'sunday', label: 'CN', aliases: ['cn', 'chủ nhật', 'chu nhat', 'sunday'] },
 ];
+
+const findDayKey = (input: string): string | null => {
+  const normalized = input.trim().toLowerCase();
+  for (const day of DAYS_OF_WEEK) {
+    if (day.key === normalized) return day.key;
+    if (day.aliases.some(a => normalized === a || normalized.includes(a))) return day.key;
+  }
+  return null;
+};
 
 const StudentScheduleDialog = ({ open, onOpenChange, userId }: StudentScheduleDialogProps) => {
   const [loading, setLoading] = useState(true);
@@ -98,33 +107,35 @@ const StudentScheduleDialog = ({ open, onOpenChange, userId }: StudentScheduleDi
 
       classesWithTutor.forEach(cls => {
         if (cls.schedule_days) {
+          const raw = typeof cls.schedule_days === 'string' ? cls.schedule_days : String(cls.schedule_days);
+          
+          // Try as JSON object first: {"monday": true, "wednesday": true}
           try {
-            // Support both JSON object and string formats
-            let days: any;
-            if (typeof cls.schedule_days === 'string') {
-              try {
-                days = JSON.parse(cls.schedule_days);
-              } catch {
-                // Maybe it's a comma-separated string like "monday,wednesday"
-                const dayList = cls.schedule_days.split(',').map(d => d.trim().toLowerCase());
-                days = {};
-                dayList.forEach(d => { days[d] = true; });
-              }
-            } else {
-              days = cls.schedule_days;
-            }
-            
-            if (typeof days === 'object' && days !== null) {
-              Object.keys(days).forEach(day => {
-                if (days[day]) {
-                  const existing = scheduleMap.get(day) || [];
-                  existing.push(cls);
-                  scheduleMap.set(day, existing);
+            const parsed = JSON.parse(raw);
+            if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+              Object.keys(parsed).forEach(key => {
+                if (parsed[key]) {
+                  const dayKey = findDayKey(key);
+                  if (dayKey) {
+                    const existing = scheduleMap.get(dayKey) || [];
+                    existing.push(cls);
+                    scheduleMap.set(dayKey, existing);
+                  }
                 }
               });
+              return;
             }
-          } catch (e) {
-            console.error('Error parsing schedule_days:', e);
+          } catch {}
+
+          // Try as plain text: "Thứ 2", "Thứ 2, Thứ 5", "monday,wednesday"
+          const parts = raw.split(/[,;|]+/);
+          for (const part of parts) {
+            const dayKey = findDayKey(part);
+            if (dayKey) {
+              const existing = scheduleMap.get(dayKey) || [];
+              existing.push(cls);
+              scheduleMap.set(dayKey, existing);
+            }
           }
         }
       });
@@ -162,15 +173,21 @@ const StudentScheduleDialog = ({ open, onOpenChange, userId }: StudentScheduleDi
         ) : (
           <div className="flex-1 overflow-auto">
             <div className="grid grid-cols-7 gap-2 min-w-[700px]">
-              {/* Header */}
-              {DAYS_OF_WEEK.map(day => (
-                <div 
-                  key={day.key} 
-                  className="text-center p-2 bg-primary/10 rounded-t-lg font-semibold text-sm"
-                >
-                  {day.label}
-                </div>
-              ))}
+              {/* Header with class count */}
+              {DAYS_OF_WEEK.map(day => {
+                const classCount = (schedule.get(day.key) || []).length;
+                return (
+                  <div 
+                    key={day.key} 
+                    className="text-center p-2 bg-primary/10 rounded-t-lg font-semibold text-sm"
+                  >
+                    {day.label}
+                    {classCount > 0 && (
+                      <span className="ml-1 text-xs font-normal text-primary">({classCount})</span>
+                    )}
+                  </div>
+                );
+              })}
               
               {/* Schedule cells */}
               {DAYS_OF_WEEK.map(day => {

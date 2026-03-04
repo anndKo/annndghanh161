@@ -36,13 +36,15 @@ interface AdminEnrollmentRequestDialogProps {
   onOpenChange: (open: boolean) => void;
   studentId: string;
   studentName: string;
+  defaultClassId?: string;
 }
 
 const AdminEnrollmentRequestDialog = ({ 
   open, 
   onOpenChange, 
   studentId, 
-  studentName 
+  studentName,
+  defaultClassId,
 }: AdminEnrollmentRequestDialogProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -69,6 +71,19 @@ const AdminEnrollmentRequestDialog = ({
       fetchClasses();
     }
   }, [open]);
+
+  // Auto-select class when defaultClassId is provided
+  useEffect(() => {
+    if (defaultClassId && classes.length > 0) {
+      const cls = classes.find(c => c.id === defaultClassId);
+      if (cls) {
+        setTrialClassId(defaultClassId);
+        setRealClassId(defaultClassId);
+        if (cls.trial_days) setTrialDays(String(cls.trial_days));
+        setRealAmount(String(cls.price_per_session));
+      }
+    }
+  }, [defaultClassId, classes]);
 
   const fetchClasses = async () => {
     setLoading(true);

@@ -939,6 +939,15 @@ const StudentDashboard = () => {
           userId={user.id}
         />
       )}
+
+      <NearbyClassSearchModal
+        open={nearbyModalOpen}
+        onClose={() => setNearbyModalOpen(false)}
+        onClassClick={(classItem) => {
+          setNearbyModalOpen(false);
+          handleEnrollClass(classItem);
+        }}
+      />
     </div>
   );
 };

@@ -36,6 +36,7 @@ import {
 import UnreadMessageBadge from '@/components/UnreadMessageBadge';
 import TutorInfoDialog from '@/components/TutorInfoDialog';
 import ReEnrollButton from '@/components/ReEnrollButton';
+import NearbyClassSearchModal from '@/components/NearbyClassSearchModal';
 
 const SUBJECTS = ['Toán', 'Vật Lý', 'Hóa Học', 'Sinh Học', 'Ngữ Văn', 'Tiếng Anh', 'Lịch Sử', 'Địa Lý', 'GDCD', 'Tin Học'];
 
@@ -187,6 +188,7 @@ const StudentDashboard = () => {
     subjects: [],
   });
   const [searchFiltersOpen, setSearchFiltersOpen] = useState(false);
+  const [nearbyModalOpen, setNearbyModalOpen] = useState(false);
   // Listen for openMessaging event
   useEffect(() => {
     const handleOpenMessaging = (event: CustomEvent<{ partnerId: string; partnerName: string }>) => {
@@ -524,41 +526,12 @@ const StudentDashboard = () => {
                   <div className="mt-4">
                     <ClassFilterPanel onFilterChange={setAdvancedFilters} />
                   </div>
-                  {/* Nearby classes button */}
+                   {/* Nearby classes button */}
                   <div className="mt-4">
                     <Button
                       variant="outline"
                       className="gap-2"
-                      onClick={() => {
-                        if (!navigator.geolocation) {
-                          toast({ variant: 'destructive', title: 'Lỗi', description: 'Trình duyệt không hỗ trợ định vị' });
-                          return;
-                        }
-                        navigator.geolocation.getCurrentPosition(
-                          (pos) => {
-                            const { latitude, longitude } = pos.coords;
-                            const nearby = classes
-                              .filter((c: any) => c.latitude && c.longitude)
-                              .map((c: any) => {
-                                const R = 6371;
-                                const dLat = (c.latitude - latitude) * Math.PI / 180;
-                                const dLon = (c.longitude - longitude) * Math.PI / 180;
-                                const a = Math.sin(dLat/2)**2 + Math.cos(latitude*Math.PI/180)*Math.cos(c.latitude*Math.PI/180)*Math.sin(dLon/2)**2;
-                                const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-                                return { ...c, _distance: dist };
-                              })
-                              .sort((a: any, b: any) => a._distance - b._distance);
-                            if (nearby.length === 0) {
-                              toast({ variant: 'destructive', title: 'Không tìm thấy', description: 'Không có lớp nào có vị trí gần bạn' });
-                            } else {
-                              setClasses(nearby as ClassItem[]);
-                              toast({ title: `Tìm thấy ${nearby.length} lớp gần bạn` });
-                            }
-                          },
-                          () => toast({ variant: 'destructive', title: 'Lỗi', description: 'Không thể lấy vị trí. Vui lòng cho phép truy cập.' }),
-                          { enableHighAccuracy: true }
-                        );
-                      }}
+                      onClick={() => setNearbyModalOpen(true)}
                     >
                       <MapPin className="w-4 h-4" />
                       Tìm lớp gần đây
@@ -966,6 +939,15 @@ const StudentDashboard = () => {
           userId={user.id}
         />
       )}
+
+      <NearbyClassSearchModal
+        open={nearbyModalOpen}
+        onClose={() => setNearbyModalOpen(false)}
+        onClassClick={(classItem) => {
+          setNearbyModalOpen(false);
+          handleEnrollClass(classItem);
+        }}
+      />
     </div>
   );
 };

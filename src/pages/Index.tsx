@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/untypedClient';
 import ClassFilterPanel, { FilterState } from '@/components/ClassFilterPanel';
 import { formatPriceDisplay } from '@/lib/formatPrice';
+import NearbyClassSearchModal from '@/components/NearbyClassSearchModal';
 import { 
   GraduationCap, 
   Users, 
@@ -65,6 +66,7 @@ const Index = () => {
   const [advancedFilters, setAdvancedFilters] = useState<FilterState>({
     startTime: '', endTime: '', days: [], subjects: [],
   });
+  const [nearbyModalOpen, setNearbyModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchClasses = async () => {
@@ -170,14 +172,11 @@ const Index = () => {
                 <Star className="w-3 h-3 md:w-4 md:h-4 text-secondary" />
                 <span className="text-accent-foreground">Nền tảng gia sư #1 Việt Nam</span>
               </div>
-              <h1 
-                className="font-bold text-left"
-                style={{ fontSize: 'clamp(20px, 5vw, 56px)', lineHeight: 1.2 }}
-              >
+              <h1 className="font-bold text-left hero-title">
                 <span className="block whitespace-nowrap">Học tập hiệu quả cùng</span>
                 <span className="block whitespace-nowrap text-gradient">gia sư chất lượng</span>
               </h1>
-              <p className="text-base md:text-lg text-muted-foreground max-w-lg">
+              <p className="text-base md:text-lg text-muted-foreground max-w-lg mt-3 md:mt-4">
                 Kết nối với đội ngũ gia sư giỏi, được xác minh kỹ lưỡng. 
                 Học online hoặc offline, theo lớp hoặc 1 kèm 1 - hoàn toàn theo ý bạn.
               </p>
@@ -260,41 +259,7 @@ const Index = () => {
               <Button
                 variant="outline"
                 className="gap-2"
-                onClick={() => {
-                  if (!navigator.geolocation) {
-                    alert('Trình duyệt không hỗ trợ định vị');
-                    return;
-                  }
-                  navigator.geolocation.getCurrentPosition(
-                    (pos) => {
-                      const { latitude, longitude } = pos.coords;
-                      // Filter classes by distance
-                      const nearby = classes
-                        .filter((c: any) => c.latitude && c.longitude)
-                        .map((c: any) => {
-                          const R = 6371;
-                          const dLat = (c.latitude - latitude) * Math.PI / 180;
-                          const dLon = (c.longitude - longitude) * Math.PI / 180;
-                          const a = Math.sin(dLat/2)**2 + Math.cos(latitude*Math.PI/180)*Math.cos(c.latitude*Math.PI/180)*Math.sin(dLon/2)**2;
-                          const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-                          return { ...c, _distance: dist };
-                        })
-                        .sort((a: any, b: any) => a._distance - b._distance);
-                      if (nearby.length === 0) {
-                        alert('Không tìm thấy lớp nào có vị trí gần bạn');
-                      } else {
-                        setSearchQuery('');
-                        setSubjectFilter('all');
-                        setGradeFilter('all');
-                        setFormatFilter('all');
-                        // Store nearby results
-                        setClasses(nearby);
-                      }
-                    },
-                    () => alert('Không thể lấy vị trí. Vui lòng cho phép truy cập vị trí.'),
-                    { enableHighAccuracy: true }
-                  );
-                }}
+                onClick={() => setNearbyModalOpen(true)}
               >
                 <MapPin className="w-4 h-4" />
                 Tìm lớp gần đây
@@ -528,6 +493,13 @@ const Index = () => {
           <div className="border-t border-border mt-8 pt-8 text-center text-muted-foreground text-sm">© 2024 EduTutor. All rights reserved.</div>
         </div>
       </footer>
+
+      <NearbyClassSearchModal
+        open={nearbyModalOpen}
+        onClose={() => setNearbyModalOpen(false)}
+        onClassClick={() => navigate('/auth?tab=signup&role=student')}
+        showRegisterButton
+      />
     </div>
   );
 };

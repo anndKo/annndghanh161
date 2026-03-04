@@ -493,6 +493,13 @@ const Index = () => {
           <div className="border-t border-border mt-8 pt-8 text-center text-muted-foreground text-sm">© 2024 EduTutor. All rights reserved.</div>
         </div>
       </footer>
+
+      <NearbyClassSearchModal
+        open={nearbyModalOpen}
+        onClose={() => setNearbyModalOpen(false)}
+        onClassClick={() => navigate('/auth?tab=signup&role=student')}
+        showRegisterButton
+      />
     </div>
   );
 };

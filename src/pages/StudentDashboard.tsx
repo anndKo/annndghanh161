@@ -36,6 +36,7 @@ import {
 import UnreadMessageBadge from '@/components/UnreadMessageBadge';
 import TutorInfoDialog from '@/components/TutorInfoDialog';
 import ReEnrollButton from '@/components/ReEnrollButton';
+import NearbyClassSearchModal from '@/components/NearbyClassSearchModal';
 
 const SUBJECTS = ['Toán', 'Vật Lý', 'Hóa Học', 'Sinh Học', 'Ngữ Văn', 'Tiếng Anh', 'Lịch Sử', 'Địa Lý', 'GDCD', 'Tin Học'];
 

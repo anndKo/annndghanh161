@@ -259,41 +259,7 @@ const Index = () => {
               <Button
                 variant="outline"
                 className="gap-2"
-                onClick={() => {
-                  if (!navigator.geolocation) {
-                    alert('Trình duyệt không hỗ trợ định vị');
-                    return;
-                  }
-                  navigator.geolocation.getCurrentPosition(
-                    (pos) => {
-                      const { latitude, longitude } = pos.coords;
-                      // Filter classes by distance
-                      const nearby = classes
-                        .filter((c: any) => c.latitude && c.longitude)
-                        .map((c: any) => {
-                          const R = 6371;
-                          const dLat = (c.latitude - latitude) * Math.PI / 180;
-                          const dLon = (c.longitude - longitude) * Math.PI / 180;
-                          const a = Math.sin(dLat/2)**2 + Math.cos(latitude*Math.PI/180)*Math.cos(c.latitude*Math.PI/180)*Math.sin(dLon/2)**2;
-                          const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-                          return { ...c, _distance: dist };
-                        })
-                        .sort((a: any, b: any) => a._distance - b._distance);
-                      if (nearby.length === 0) {
-                        alert('Không tìm thấy lớp nào có vị trí gần bạn');
-                      } else {
-                        setSearchQuery('');
-                        setSubjectFilter('all');
-                        setGradeFilter('all');
-                        setFormatFilter('all');
-                        // Store nearby results
-                        setClasses(nearby);
-                      }
-                    },
-                    () => alert('Không thể lấy vị trí. Vui lòng cho phép truy cập vị trí.'),
-                    { enableHighAccuracy: true }
-                  );
-                }}
+                onClick={() => setNearbyModalOpen(true)}
               >
                 <MapPin className="w-4 h-4" />
                 Tìm lớp gần đây

@@ -66,6 +66,7 @@ const Index = () => {
   const [advancedFilters, setAdvancedFilters] = useState<FilterState>({
     startTime: '', endTime: '', days: [], subjects: [],
   });
+  const [nearbyModalOpen, setNearbyModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchClasses = async () => {

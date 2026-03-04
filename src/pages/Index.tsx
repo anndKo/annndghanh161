@@ -179,7 +179,7 @@ const Index = () => {
                   md:text-[40px] 
                   lg:text-[52px] 
                   xl:text-[60px]">
-                  Học tập hiệu quả cùng
+                  Học tập hiệu quả
                 </span>
               
                 <span className="block whitespace-nowrap text-gradient 

@@ -172,14 +172,11 @@ const Index = () => {
                 <Star className="w-3 h-3 md:w-4 md:h-4 text-secondary" />
                 <span className="text-accent-foreground">Nền tảng gia sư #1 Việt Nam</span>
               </div>
-              <h1 
-                className="font-bold text-left"
-                style={{ fontSize: 'clamp(20px, 5vw, 56px)', lineHeight: 1.2 }}
-              >
+              <h1 className="font-bold text-left hero-title">
                 <span className="block whitespace-nowrap">Học tập hiệu quả cùng</span>
                 <span className="block whitespace-nowrap text-gradient">gia sư chất lượng</span>
               </h1>
-              <p className="text-base md:text-lg text-muted-foreground max-w-lg">
+              <p className="text-base md:text-lg text-muted-foreground max-w-lg mt-3 md:mt-4">
                 Kết nối với đội ngũ gia sư giỏi, được xác minh kỹ lưỡng. 
                 Học online hoặc offline, theo lớp hoặc 1 kèm 1 - hoàn toàn theo ý bạn.
               </p>

@@ -227,7 +227,7 @@ const SharedClassesButton = () => {
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col z-[200]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Briefcase className="w-5 h-5" />
@@ -357,7 +357,7 @@ const SortedClassList = ({
                 ? 'opacity-60 cursor-not-allowed'
                 : 'cursor-pointer hover:shadow-md'
             } ${selectedClass?.id === classItem.id ? 'ring-2 ring-primary' : ''}`}
-            onClick={() => onSelect(classItem)}
+            onClick={(e) => { e.stopPropagation(); onSelect(classItem); }}
           >
             <CardHeader className="pb-2">
               <div className="flex items-start justify-between">

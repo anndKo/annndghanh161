@@ -227,7 +227,11 @@ const SharedClassesButton = () => {
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col z-[200]">
+        <DialogContent
+          className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col z-[200]"
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+        >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Briefcase className="w-5 h-5" />

@@ -12,6 +12,8 @@ import TutorDashboard from "./pages/TutorDashboard";
 import StudentDashboard from "./pages/StudentDashboard";
 import ClassPage from "./pages/ClassPage";
 import TutorManagement from "./pages/TutorManagement";
+import AdminGuides from "./pages/AdminGuides";
+import GuidesPage from "./pages/GuidesPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();

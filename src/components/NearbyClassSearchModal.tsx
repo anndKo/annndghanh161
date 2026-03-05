@@ -259,24 +259,25 @@ const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButto
                           <span className="break-words">{classItem.address}</span>
                         </p>
                       )}
-                      {classItem._distance < Infinity && (
-                        <p className="flex items-center gap-1.5 text-primary font-medium">
-                          <MapPin className="w-3 h-3 flex-shrink-0" />
-                          ~{classItem._distance < 1 ? `${Math.round(classItem._distance * 1000)}m` : `${classItem._distance.toFixed(1)}km`}
-                        </p>
-                      )}
                     </div>
-                    <div className="mt-auto pt-2 border-t border-border">
-                      {classItem.discount_percent > 0 ? (
-                        <div>
-                          <span className="text-xs line-through text-muted-foreground">{formatPriceDisplay(classItem.price_per_session)}</span>
-                          <span className="text-sm font-bold text-primary ml-1">
-                            {formatPriceDisplay(classItem.price_per_session * (1 - classItem.discount_percent / 100))}
-                            <span className="text-xs text-destructive ml-1">(-{classItem.discount_percent}%)</span>
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-sm font-bold text-primary">{formatPriceDisplay(classItem.price_per_session)}/buổi</span>
+                    <div className="mt-auto pt-2 border-t border-border flex items-center justify-between">
+                      <div>
+                        {classItem.discount_percent > 0 ? (
+                          <div>
+                            <span className="text-xs line-through text-muted-foreground">{formatPriceDisplay(classItem.price_per_session)}</span>
+                            <span className="text-sm font-bold text-primary ml-1">
+                              {formatPriceDisplay(classItem.price_per_session * (1 - classItem.discount_percent / 100))}
+                              <span className="text-xs text-destructive ml-1">(-{classItem.discount_percent}%)</span>
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-sm font-bold text-primary">{formatPriceDisplay(classItem.price_per_session)}/buổi</span>
+                        )}
+                      </div>
+                      {classItem._distance < Infinity && (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium bg-accent text-accent-foreground px-2 py-0.5 rounded-md">
+                          📍 {classItem._distance < 1 ? `${Math.round(classItem._distance * 1000)}m` : `${classItem._distance.toFixed(1)}km`}
+                        </span>
                       )}
                     </div>
                   </CardContent>

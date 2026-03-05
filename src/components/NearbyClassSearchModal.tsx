@@ -88,8 +88,8 @@ const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButto
 
   const filteredClasses = classes
     .map(c => {
-      if (subjectFilter !== 'all' && c.subject !== subjectFilter) return null;
-      if (formatFilter !== 'all' && c.teaching_format !== formatFilter) return null;
+      if (subjectFilter && subjectFilter !== 'all' && c.subject !== subjectFilter) return null;
+      if (formatFilter && formatFilter !== 'all' && c.teaching_format !== formatFilter) return null;
       if (searchQuery) {
         const q = removeDiacritics(searchQuery.toLowerCase());
         const matchName = removeDiacritics((c.name || '').toLowerCase()).includes(q);
@@ -106,18 +106,23 @@ const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButto
     .filter(Boolean)
     .sort((a: any, b: any) => a._distance - b._distance);
 
+  const formatDistance = (dist: number) => {
+    if (dist >= Infinity) return null;
+    if (dist < 0.1) return `${Math.round(dist * 1000)}m`;
+    if (dist < 1) return `${Math.round(dist * 1000)}m`;
+    if (dist < 10) return `${dist.toFixed(1)}km`;
+    return `${Math.round(dist)}km`;
+  };
+
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center">
-      {/* Backdrop */}
       <div
         className="absolute inset-0 bg-foreground/60 backdrop-blur-sm animate-fade-in"
         onClick={onClose}
       />
-      {/* Modal */}
       <div className="relative z-10 w-full h-full md:w-[95vw] md:h-[90vh] md:max-w-7xl md:rounded-2xl bg-background border border-border shadow-2xl flex flex-col md:flex-row overflow-hidden animate-scale-in">
-        {/* Close button */}
         <button
           onClick={onClose}
           className="absolute top-4 right-4 z-20 w-10 h-10 rounded-full bg-card border border-border flex items-center justify-center hover:bg-muted transition-colors"
@@ -125,9 +130,8 @@ const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButto
           <X className="w-5 h-5" />
         </button>
 
-        {/* Left Panel - Search & Filters */}
+        {/* Left Panel */}
         <div className="w-full md:w-[40%] p-5 md:p-8 border-b md:border-b-0 md:border-r border-border flex flex-col gap-5 bg-card/50 overflow-y-auto flex-shrink-0 max-h-[45vh] md:max-h-full">
-          {/* Radar Animation */}
           <div className="flex items-center justify-center">
             <div className="relative w-20 h-20 md:w-28 md:h-28">
               <div className="absolute inset-0 rounded-full border-2 border-primary/20" />
@@ -151,7 +155,6 @@ const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButto
             </p>
           </div>
 
-          {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
@@ -164,14 +167,14 @@ const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButto
 
           {/* Filters */}
           <div className="grid grid-cols-2 gap-3">
-            <Select value={subjectFilter} onValueChange={setSubjectFilter}>
+            <Select value={subjectFilter} onValueChange={(val) => setSubjectFilter(val)}>
               <SelectTrigger className="rounded-xl"><SelectValue placeholder="Môn học" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tất cả môn</SelectItem>
                 {SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value={formatFilter} onValueChange={setFormatFilter}>
+            <Select value={formatFilter} onValueChange={(val) => setFormatFilter(val)}>
               <SelectTrigger className="rounded-xl"><SelectValue placeholder="Hình thức" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tất cả</SelectItem>
@@ -181,6 +184,18 @@ const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButto
               </SelectContent>
             </Select>
           </div>
+
+          {/* Reset filters */}
+          {(subjectFilter !== 'all' || formatFilter !== 'all' || searchQuery) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setSearchQuery(''); setSubjectFilter('all'); setFormatFilter('all'); }}
+              className="gap-2 text-xs text-muted-foreground"
+            >
+              <X className="w-3 h-3" /> Xóa bộ lọc
+            </Button>
+          )}
 
           {locationStatus === 'error' && (
             <Button variant="outline" size="sm" onClick={requestLocation} className="gap-2 rounded-xl">
@@ -198,14 +213,13 @@ const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButto
               <p className="text-muted-foreground">Đang tải lớp học...</p>
             </div>
           ) : filteredClasses.length === 0 ? (
-            /* Empty State */
             <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-4">
               <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center">
                 <BookOpen className="w-10 h-10 text-muted-foreground/50" />
               </div>
-              <h3 className="text-lg font-semibold">Không có lớp gần đây</h3>
+              <h3 className="text-lg font-semibold">Không có lớp phù hợp</h3>
               <p className="text-muted-foreground text-sm max-w-sm">
-                Không tìm thấy lớp học phù hợp. Hãy thử thay đổi bộ lọc hoặc mở rộng tìm kiếm.
+                Không tìm thấy lớp học phù hợp. Hãy thử thay đổi bộ lọc.
               </p>
               <Button
                 variant="outline"
@@ -221,7 +235,7 @@ const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButto
               {filteredClasses.map((classItem: any) => (
                 <Card
                   key={classItem.id}
-                  className="overflow-hidden border border-border rounded-2xl hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col"
+                  className="overflow-hidden border border-border rounded-2xl hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col relative"
                   onClick={() => onClassClick?.(classItem)}
                 >
                   <CardContent className="p-4 flex flex-col flex-1 gap-2.5">
@@ -260,24 +274,27 @@ const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButto
                           <span className="break-words">{classItem.address}</span>
                         </p>
                       )}
-                      {classItem._distance < Infinity && (
-                        <p className="flex items-center gap-1.5 text-primary font-medium">
-                          <MapPin className="w-3 h-3 flex-shrink-0" />
-                          ~{classItem._distance < 1 ? `${Math.round(classItem._distance * 1000)}m` : `${classItem._distance.toFixed(1)}km`}
-                        </p>
-                      )}
                     </div>
-                    <div className="mt-auto pt-2 border-t border-border">
-                      {classItem.discount_percent > 0 ? (
-                        <div>
-                          <span className="text-xs line-through text-muted-foreground">{formatPriceDisplay(classItem.price_per_session)}</span>
-                          <span className="text-sm font-bold text-primary ml-1">
-                            {formatPriceDisplay(classItem.price_per_session * (1 - classItem.discount_percent / 100))}
-                            <span className="text-xs text-destructive ml-1">(-{classItem.discount_percent}%)</span>
-                          </span>
+                    <div className="mt-auto pt-2 border-t border-border flex items-end justify-between">
+                      <div>
+                        {classItem.discount_percent > 0 ? (
+                          <div>
+                            <span className="text-xs line-through text-muted-foreground">{formatPriceDisplay(classItem.price_per_session)}</span>
+                            <span className="text-sm font-bold text-primary ml-1">
+                              {formatPriceDisplay(classItem.price_per_session * (1 - classItem.discount_percent / 100))}
+                              <span className="text-xs text-destructive ml-1">(-{classItem.discount_percent}%)</span>
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-sm font-bold text-primary">{formatPriceDisplay(classItem.price_per_session)}/buổi</span>
+                        )}
+                      </div>
+                      {/* Distance badge at bottom-right */}
+                      {formatDistance(classItem._distance) && (
+                        <div className="flex items-center gap-1 bg-primary/10 text-primary rounded-full px-2 py-0.5 text-[11px] font-semibold flex-shrink-0">
+                          <MapPin className="w-3 h-3" />
+                          {formatDistance(classItem._distance)}
                         </div>
-                      ) : (
-                        <span className="text-sm font-bold text-primary">{formatPriceDisplay(classItem.price_per_session)}/buổi</span>
                       )}
                     </div>
                   </CardContent>

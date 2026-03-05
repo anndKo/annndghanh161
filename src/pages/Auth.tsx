@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import logoImg from '@/assets/logo.png';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/untypedClient';
@@ -240,9 +241,7 @@ const Auth = () => {
         </Link>
         
         <div className="flex items-center gap-3 mb-8">
-          <div className="w-12 h-12 rounded-xl bg-gradient-primary flex items-center justify-center">
-            <GraduationCap className="w-7 h-7 text-primary-foreground" />
-          </div>
+          <img src={logoImg} alt="EduTutor" className="w-12 h-12 rounded-xl object-cover" loading="eager" />
           <div>
             <h1 className="text-2xl font-bold">EduTutor</h1>
             <p className="text-sm text-muted-foreground">Nền tảng gia sư trực tuyến</p>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import logoImg from '@/assets/logo.png';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/untypedClient';
@@ -333,9 +334,7 @@ const TutorDashboard = () => {
       <header className="bg-card border-b border-border sticky top-0 z-50">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-primary to-blue-600 flex items-center justify-center flex-shrink-0">
-              <GraduationCap className="w-6 h-6 text-primary-foreground" />
-            </div>
+            <img src={logoImg} alt="EduTutor" className="w-10 h-10 rounded-xl object-cover flex-shrink-0" loading="eager" />
             <div className="min-w-0">
               <h1 className="font-bold truncate">{fullName || 'Gia sư Dashboard'}</h1>
               <div className="flex items-center gap-1 text-xs text-muted-foreground">

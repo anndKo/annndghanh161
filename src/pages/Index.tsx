@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import logoImg from '@/assets/logo.png';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -146,9 +147,7 @@ const Index = () => {
       <header className="fixed top-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-lg border-b border-border">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center">
-              <GraduationCap className="w-6 h-6 text-primary-foreground" />
-            </div>
+            <img src={logoImg} alt="EduTutor" className="w-10 h-10 rounded-xl object-cover" loading="eager" />
             <span className="text-xl font-bold text-foreground">EduTutor</span>
           </Link>
           <nav className="hidden md:flex items-center gap-6">
@@ -224,8 +223,8 @@ const Index = () => {
                 <div className="absolute inset-0 bg-gradient-hero rounded-3xl rotate-6 opacity-20" />
                 <div className="absolute inset-0 bg-card rounded-3xl shadow-xl border border-border overflow-hidden">
                   <div className="h-full flex flex-col items-center justify-center p-8 text-center">
-                    <div className="w-20 h-20 lg:w-24 lg:h-24 rounded-full bg-gradient-primary flex items-center justify-center mb-6 animate-float">
-                      <GraduationCap className="w-10 h-10 lg:w-12 lg:h-12 text-primary-foreground" />
+                    <div className="w-20 h-20 lg:w-24 lg:h-24 rounded-full bg-primary/10 flex items-center justify-center mb-6 animate-float">
+                      <img src={logoImg} alt="EduTutor" className="w-14 h-14 lg:w-16 lg:h-16 rounded-full object-cover" loading="eager" />
                     </div>
                     <h3 className="text-xl lg:text-2xl font-bold mb-2">Học mọi lúc, mọi nơi</h3>
                     <p className="text-muted-foreground text-sm">Online • Offline • Linh hoạt</p>
@@ -482,9 +481,7 @@ const Index = () => {
           <div className="grid md:grid-cols-4 gap-8">
             <div className="md:col-span-2">
               <Link to="/" className="flex items-center gap-2 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center">
-                  <GraduationCap className="w-6 h-6 text-primary-foreground" />
-                </div>
+                <img src={logoImg} alt="EduTutor" className="w-10 h-10 rounded-xl object-cover" loading="eager" />
                 <span className="text-xl font-bold">EduTutor</span>
               </Link>
               <p className="text-muted-foreground max-w-sm">Nền tảng kết nối gia sư và học viên hàng đầu Việt Nam. Học tập hiệu quả, an toàn và tiện lợi.</p>

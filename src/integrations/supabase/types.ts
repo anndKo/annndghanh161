@@ -310,6 +310,36 @@ export type Database = {
           },
         ]
       }
+      guides: {
+        Row: {
+          content: string | null
+          created_at: string
+          id: string
+          target_role: string
+          title: string
+          updated_at: string
+          video_url: string | null
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          id?: string
+          target_role?: string
+          title: string
+          updated_at?: string
+          video_url?: string | null
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          id?: string
+          target_role?: string
+          title?: string
+          updated_at?: string
+          video_url?: string | null
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           content: string

@@ -149,6 +149,8 @@ const EditClassDialog = ({
         schedule_days: classItem.schedule_days || '',
         schedule_start_time: classItem.schedule_start_time?.slice(0, 5) || '',
         schedule_end_time: classItem.schedule_end_time?.slice(0, 5) || '',
+        latitude: classItem.latitude ? String(classItem.latitude) : '',
+        longitude: classItem.longitude ? String(classItem.longitude) : '',
       });
       fetchApprovedTutors();
     }

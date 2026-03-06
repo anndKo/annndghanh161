@@ -65,6 +65,7 @@ const CreateClassDialog = ({
   const [loadingTutors, setLoadingTutors] = useState(false);
   const [tutorSearch, setTutorSearch] = useState('');
   const [discountEnabled, setDiscountEnabled] = useState(false);
+  const [locationEnabled, setLocationEnabled] = useState(false);
   const [priceDisplay, setPriceDisplay] = useState('');
   
   const [formData, setFormData] = useState({

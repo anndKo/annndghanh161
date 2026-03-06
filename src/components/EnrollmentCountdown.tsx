@@ -52,14 +52,7 @@ const EnrollmentCountdown = ({ enrollmentExpiresAt, enrollmentType, showLabel = 
   }
 
   if (!enrollmentExpiresAt) {
-    if (enrollmentType === 'real') {
-      return (
-        <Badge variant="outline" className="text-muted-foreground">
-          <Clock className="w-3 h-3 mr-1" />
-          Chưa đặt hạn
-        </Badge>
-      );
-    }
+    // Don't show "Chưa đặt hạn" - the RealEnrollmentBadge handles showing "Học thật" status
     return null;
   }
 

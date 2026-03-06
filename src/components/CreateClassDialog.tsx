@@ -474,6 +474,70 @@ const CreateClassDialog = ({
             </div>
           </div>
 
+          {/* Location Toggle */}
+          <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-2">
+                <MapPin className="w-4 h-4" />
+                Bật vị trí lớp
+              </Label>
+              <Switch checked={locationEnabled} onCheckedChange={setLocationEnabled} />
+            </div>
+            {locationEnabled && (
+              <div className="space-y-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 w-full"
+                  onClick={() => {
+                    if (!navigator.geolocation) {
+                      toast({ variant: 'destructive', title: 'Lỗi', description: 'Trình duyệt không hỗ trợ định vị' });
+                      return;
+                    }
+                    navigator.geolocation.getCurrentPosition(
+                      (pos) => {
+                        setFormData(prev => ({
+                          ...prev,
+                          latitude: String(pos.coords.latitude),
+                          longitude: String(pos.coords.longitude),
+                        }));
+                        toast({ title: 'Đã lấy vị trí', description: `Tọa độ: ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}` });
+                      },
+                      () => toast({ variant: 'destructive', title: 'Lỗi', description: 'Không thể lấy vị trí' }),
+                      { enableHighAccuracy: true }
+                    );
+                  }}
+                >
+                  <MapPin className="w-4 h-4" />
+                  {formData.latitude ? `📍 ${Number(formData.latitude).toFixed(5)}, ${Number(formData.longitude).toFixed(5)}` : 'Chia sẻ vị trí chính xác'}
+                </Button>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Latitude</Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      value={formData.latitude}
+                      onChange={(e) => setFormData(prev => ({ ...prev, latitude: e.target.value }))}
+                      placeholder="VD: 10.762622"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Longitude</Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      value={formData.longitude}
+                      onChange={(e) => setFormData(prev => ({ ...prev, longitude: e.target.value }))}
+                      placeholder="VD: 106.660172"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Schedule with different times per day */}
           <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
             <Label className="flex items-center gap-2">

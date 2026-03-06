@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/untypedClient';
 import { useAuth } from '@/hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -25,6 +26,7 @@ interface Notification {
 
 const NotificationBell = () => {
   const { user, role } = useAuth();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
@@ -33,7 +35,6 @@ const NotificationBell = () => {
   const audioEnabledRef = useRef(false);
   const channelRef = useRef<any>(null);
 
-  // Play notification sound
   const playSound = useCallback(() => {
     if (!audioEnabledRef.current) return;
     try {
@@ -58,7 +59,6 @@ const NotificationBell = () => {
     }
   }, []);
 
-  // Enable audio on first user interaction
   useEffect(() => {
     const enable = () => { audioEnabledRef.current = true; };
     const events = ['click', 'touchstart', 'keydown'];
@@ -66,7 +66,6 @@ const NotificationBell = () => {
     return () => { events.forEach(e => document.removeEventListener(e, enable)); };
   }, []);
 
-  // Fetch notifications
   const fetchNotifications = useCallback(async () => {
     if (!user) return;
     const { data, error } = await supabase
@@ -82,14 +81,10 @@ const NotificationBell = () => {
     }
   }, [user]);
 
-
-  // Main effect: setup realtime subscriptions
   useEffect(() => {
     if (!user) return;
-
     fetchNotifications();
 
-    // Cleanup old channel
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
@@ -100,39 +95,23 @@ const NotificationBell = () => {
       .channel(channelName)
       .on(
         'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${user.id}`,
-        },
+        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
         (payload: any) => {
           const newNotif = payload.new as Notification;
-
           setNotifications((prev) => {
             if (prev.some((n) => n.id === newNotif.id)) return prev;
             return [newNotif, ...prev].slice(0, 50);
           });
-
-          if (!newNotif.is_read) {
-            setUnreadCount((prev) => prev + 1);
-          }
+          if (!newNotif.is_read) setUnreadCount((prev) => prev + 1);
           playSound();
         }
       )
       .subscribe((status: string) => {
-        if (status === 'CHANNEL_ERROR') {
-          // Retry after error
-          setTimeout(() => fetchNotifications(), 3000);
-        }
+        if (status === 'CHANNEL_ERROR') setTimeout(() => fetchNotifications(), 3000);
       });
 
     channelRef.current = notifChannel;
-
-    // Periodic refresh as fallback (every 30s)
-    const interval = setInterval(() => {
-      fetchNotifications();
-    }, 30000);
+    const interval = setInterval(() => fetchNotifications(), 30000);
 
     return () => {
       clearInterval(interval);
@@ -168,11 +147,51 @@ const NotificationBell = () => {
 
   const handleNotificationClick = (notification: Notification) => {
     if (!notification.is_read) markAsRead(notification.id);
-    if (notification.type === 'payment_confirmed' && role === 'tutor') {
+    
+    // Navigate based on notification type
+    const type = notification.type;
+    const relatedId = notification.related_id;
+
+    if (type === 'payment_confirmed' && role === 'tutor') {
       setComplaintNotificationId(notification.id);
       setComplaintOpen(true);
       setOpen(false);
+      return;
     }
+
+    // Admin: enrollment/class related notifications -> go to admin dashboard with highlight
+    if (role === 'admin') {
+      if (['enrollment_request', 'class_request', 'enrollment_approved', 'enrollment_rejected'].includes(type)) {
+        setOpen(false);
+        // Navigate to admin with highlight param
+        if (relatedId) {
+          navigate(`/admin?tab=enrollments&highlight=${relatedId}`);
+        } else {
+          navigate('/admin?tab=enrollments');
+        }
+        return;
+      }
+    }
+
+    // Student: enrollment approved -> go to student dashboard enrolled tab
+    if (role === 'student') {
+      if (['enrollment_approved', 'enrollment_rejected', 'enrollment_request'].includes(type)) {
+        setOpen(false);
+        navigate('/student?tab=enrolled');
+        return;
+      }
+    }
+
+    // Tutor: class assigned
+    if (role === 'tutor') {
+      if (type === 'class_assigned' || type === 'class_shared') {
+        setOpen(false);
+        // Stay on tutor dashboard
+        return;
+      }
+    }
+
+    setOpen(false);
   };
 
   return (

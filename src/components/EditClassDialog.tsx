@@ -80,6 +80,7 @@ const EditClassDialog = ({
   const [tutors, setTutors] = useState<Tutor[]>([]);
   const [loadingTutors, setLoadingTutors] = useState(false);
   const [discountEnabled, setDiscountEnabled] = useState(false);
+  const [locationEnabled, setLocationEnabled] = useState(false);
   
   const [formData, setFormData] = useState({
     name: '',

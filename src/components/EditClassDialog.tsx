@@ -102,6 +102,8 @@ const EditClassDialog = ({
     schedule_days: '',
     schedule_start_time: '',
     schedule_end_time: '',
+    latitude: '',
+    longitude: '',
   });
 
   useEffect(() => {

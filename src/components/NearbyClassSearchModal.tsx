@@ -6,9 +6,10 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/untypedClient';
 import { formatPriceDisplay } from '@/lib/formatPrice';
+import LocationGuideModal from '@/components/LocationGuideModal';
 import {
   X, Search, MapPin, BookOpen, Monitor, Users, User, Calendar,
-  Tag, Loader2, Radar
+  Tag, Loader2, Radar, Navigation, XCircle, HelpCircle
 } from 'lucide-react';
 
 const SUBJECTS = ['Toán', 'Vật Lý', 'Hóa Học', 'Sinh Học', 'Ngữ Văn', 'Tiếng Anh', 'Lịch Sử', 'Địa Lý', 'GDCD', 'Tin Học'];
@@ -39,12 +40,14 @@ interface NearbyClassSearchModalProps {
 const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButton = false }: NearbyClassSearchModalProps) => {
   const [classes, setClasses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searching, setSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [subjectFilter, setSubjectFilter] = useState('all');
   const [formatFilter, setFormatFilter] = useState('all');
-  const [locationStatus, setLocationStatus] = useState<'idle' | 'loading' | 'found' | 'error'>('idle');
+  const [locationStatus, setLocationStatus] = useState<'idle' | 'loading' | 'found' | 'denied' | 'error'>('idle');
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [permissionDenied, setPermissionDenied] = useState(false);
+  const [showDeniedNotice, setShowDeniedNotice] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -55,22 +58,46 @@ const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButto
       setLoading(false);
     };
     fetchClasses();
-    // Auto-detect location
     requestLocation();
   }, [open]);
 
-  const requestLocation = () => {
+  const requestLocation = async () => {
     if (!navigator.geolocation) {
       setLocationStatus('error');
+      setShowDeniedNotice(true);
       return;
     }
+
+    // Check permission state first
+    try {
+      const perm = await navigator.permissions.query({ name: 'geolocation' });
+      if (perm.state === 'denied') {
+        setPermissionDenied(true);
+        setLocationStatus('denied');
+        setShowDeniedNotice(true);
+        return;
+      }
+    } catch {
+      // permissions API not supported, proceed with request
+    }
+
     setLocationStatus('loading');
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         setLocationStatus('found');
+        setShowDeniedNotice(false);
+        setPermissionDenied(false);
       },
-      () => setLocationStatus('error'),
+      (err) => {
+        if (err.code === err.PERMISSION_DENIED) {
+          setPermissionDenied(true);
+          setLocationStatus('denied');
+        } else {
+          setLocationStatus('error');
+        }
+        setShowDeniedNotice(true);
+      },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   };
@@ -110,13 +137,8 @@ const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButto
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-foreground/60 backdrop-blur-sm animate-fade-in pointer-events-none"
-      />
-      {/* Modal */}
+      <div className="absolute inset-0 bg-foreground/60 backdrop-blur-sm animate-fade-in pointer-events-none" />
       <div className="relative z-10 w-full h-full md:w-[95vw] md:h-[90vh] md:max-w-7xl md:rounded-2xl bg-background border border-border shadow-2xl flex flex-col md:flex-row overflow-hidden animate-scale-in">
-        {/* Close button */}
         <button
           onClick={onClose}
           className="absolute top-4 right-4 z-20 w-10 h-10 rounded-full bg-card border border-border flex items-center justify-center hover:bg-muted transition-colors"
@@ -124,9 +146,8 @@ const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButto
           <X className="w-5 h-5" />
         </button>
 
-        {/* Left Panel - Search & Filters */}
+        {/* Left Panel */}
         <div className="w-full md:w-[40%] p-5 md:p-8 border-b md:border-b-0 md:border-r border-border flex flex-col gap-5 bg-card/50 overflow-y-auto flex-shrink-0 max-h-[45vh] md:max-h-full">
-          {/* Radar Animation */}
           <div className="flex items-center justify-center">
             <div className="relative w-20 h-20 md:w-28 md:h-28">
               <div className="absolute inset-0 rounded-full border-2 border-primary/20" />
@@ -145,12 +166,12 @@ const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButto
             <p className="text-sm text-muted-foreground mt-1">
               {locationStatus === 'loading' && 'Đang xác định vị trí...'}
               {locationStatus === 'found' && '✓ Đã xác định vị trí, sắp xếp theo khoảng cách'}
+              {locationStatus === 'denied' && '⚠ Vị trí bị từ chối. Bạn vẫn có thể tìm lớp bình thường.'}
               {locationStatus === 'error' && 'Không thể lấy vị trí. Kết quả không sắp xếp theo khoảng cách.'}
               {locationStatus === 'idle' && 'Cho phép truy cập vị trí để tìm lớp gần nhất'}
             </p>
           </div>
 
-          {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
@@ -161,7 +182,6 @@ const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButto
             />
           </div>
 
-          {/* Filters */}
           <div className="grid grid-cols-2 gap-3">
             <Select value={subjectFilter} onValueChange={setSubjectFilter}>
               <SelectTrigger className="rounded-xl"><SelectValue placeholder="Môn học" /></SelectTrigger>
@@ -181,7 +201,7 @@ const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButto
             </Select>
           </div>
 
-          {locationStatus === 'error' && (
+          {(locationStatus === 'error' || locationStatus === 'denied') && !showDeniedNotice && (
             <Button variant="outline" size="sm" onClick={requestLocation} className="gap-2 rounded-xl">
               <MapPin className="w-4 h-4" />
               Thử lại định vị
@@ -189,15 +209,47 @@ const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButto
           )}
         </div>
 
-        {/* Right Panel - Class List */}
+        {/* Right Panel */}
         <div className="flex-1 overflow-y-auto p-4 md:p-6">
+          {/* Location denied notice */}
+          {showDeniedNotice && (
+            <div className="mb-5 rounded-2xl border border-warning/30 bg-warning/5 p-5 animate-fade-in">
+              <div className="flex items-start gap-3">
+                <div className="w-11 h-11 rounded-full bg-warning/10 flex items-center justify-center flex-shrink-0">
+                  <MapPin className="w-5 h-5 text-warning" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-foreground">Không thể lấy vị trí</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Vui lòng bật định vị để tìm lớp gần bạn nhanh và chính xác hơn.
+                  </p>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <Button size="sm" onClick={requestLocation} className="gap-1.5 rounded-xl">
+                      <Navigation className="w-3.5 h-3.5" />
+                      Bật vị trí lại
+                    </Button>
+                    {permissionDenied && (
+                      <Button size="sm" variant="outline" onClick={() => setShowGuide(true)} className="gap-1.5 rounded-xl">
+                        <HelpCircle className="w-3.5 h-3.5" />
+                        Hướng dẫn bật vị trí
+                      </Button>
+                    )}
+                    <Button size="sm" variant="ghost" onClick={() => setShowDeniedNotice(false)} className="gap-1.5 rounded-xl text-muted-foreground">
+                      <XCircle className="w-3.5 h-3.5" />
+                      Từ chối
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {loading ? (
             <div className="flex flex-col items-center justify-center h-full gap-3">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
               <p className="text-muted-foreground">Đang tải lớp học...</p>
             </div>
           ) : filteredClasses.length === 0 ? (
-            /* Empty State */
             <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-4">
               <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center">
                 <BookOpen className="w-10 h-10 text-muted-foreground/50" />
@@ -287,6 +339,8 @@ const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButto
           )}
         </div>
       </div>
+
+      <LocationGuideModal open={showGuide} onClose={() => setShowGuide(false)} />
     </div>
   );
 };

@@ -242,6 +242,7 @@ const CreateClassDialog = ({
       setScheduleItems([]);
       setPriceDisplay('');
       setDiscountEnabled(false);
+      setLocationEnabled(false);
 
       onOpenChange(false);
       onCreated?.();

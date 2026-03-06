@@ -58,6 +58,8 @@ interface ClassItem {
   schedule_days?: string | null;
   schedule_start_time?: string | null;
   schedule_end_time?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 interface EditClassDialogProps {

@@ -1437,6 +1437,7 @@ const AdminDashboard = () => {
       <AdminEnrollmentApprovalDialog
         open={enrollmentApprovalOpen}
         onOpenChange={setEnrollmentApprovalOpen}
+        onRefresh={fetchEnrollments}
       />
 
       {/* Attendance Stats Dialog */}

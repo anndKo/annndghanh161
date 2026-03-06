@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Briefcase, MapPin, Monitor, Users, Clock, Loader2, Send, Search } from 'lucide-react';
+import { Briefcase, MapPin, Monitor, Users, Clock, Loader2, Send, Search, Navigation } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface SharedClass {
@@ -33,7 +33,18 @@ interface SharedClass {
   schedule_start_time: string | null;
   schedule_end_time: string | null;
   tutor_percentage: number | null;
+  latitude: number | null;
+  longitude: number | null;
 }
+
+// Haversine distance calculation
+const haversineDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
 
 const SharedClassesButton = () => {
   const { user } = useAuth();
@@ -48,6 +59,9 @@ const SharedClassesButton = () => {
   const [myRequests, setMyRequests] = useState<string[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [addressSearch, setAddressSearch] = useState('');
+  const [nearbyMode, setNearbyMode] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [gettingLocation, setGettingLocation] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -62,31 +76,15 @@ const SharedClassesButton = () => {
     }
   }, [open, user]);
 
-  // Realtime subscription for new shared classes
   useEffect(() => {
     if (!user) return;
-
     const channel = supabase
       .channel('shared-classes-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'classes',
-        },
-        (payload) => {
-          const updatedClass = payload.new as any;
-          if (updatedClass.is_shared) {
-            fetchUnreadCount();
-          }
-        }
-      )
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'classes' }, (payload: any) => {
+        if (payload.new?.is_shared) fetchUnreadCount();
+      })
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [user]);
 
   const fetchUnreadCount = async () => {
@@ -95,7 +93,6 @@ const SharedClassesButton = () => {
       .select('*', { count: 'exact', head: true })
       .eq('is_shared', true)
       .is('tutor_id', null);
-    
     setUnreadCount(count || 0);
   };
 
@@ -108,7 +105,6 @@ const SharedClassesButton = () => {
         .eq('is_shared', true)
         .eq('is_active', true)
         .order('created_at', { ascending: false });
-
       if (error) throw error;
       setSharedClasses(data || []);
     } catch (error) {
@@ -120,22 +116,21 @@ const SharedClassesButton = () => {
 
   const fetchMyRequests = async () => {
     if (!user) return;
-    
     const { data } = await supabase
       .from('class_requests')
       .select('class_id')
       .eq('tutor_id', user.id)
       .eq('status', 'pending');
-    
-    setMyRequests(data?.map(r => r.class_id) || []);
+    setMyRequests(data?.map((r: any) => r.class_id) || []);
   };
 
-  const handleRequestClass = async () => {
-    if (!user || !selectedClass) return;
+  const handleRequestClass = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!user || !selectedClass || submitting) return;
 
     setSubmitting(true);
     try {
-      // Check if already requested
       const { data: existing } = await supabase
         .from('class_requests')
         .select('id')
@@ -144,30 +139,19 @@ const SharedClassesButton = () => {
         .single();
 
       if (existing) {
-        toast({
-          variant: 'destructive',
-          title: 'Đã gửi yêu cầu',
-          description: 'Bạn đã gửi yêu cầu cho lớp này rồi',
-        });
+        toast({ variant: 'destructive', title: 'Đã gửi yêu cầu', description: 'Bạn đã gửi yêu cầu cho lớp này rồi' });
+        setSubmitting(false);
         return;
       }
 
-      const insertData: any = {
-        class_id: selectedClass.id,
-        tutor_id: user.id,
-      };
+      const insertData: any = { class_id: selectedClass.id, tutor_id: user.id };
       if (note.trim()) insertData.note = note.trim();
       
       const { error } = await supabase.from('class_requests').insert(insertData);
-
       if (error) throw error;
 
       // Notify admins
-      const { data: admins } = await supabase
-        .from('user_roles')
-        .select('user_id')
-        .eq('role', 'admin');
-
+      const { data: admins } = await supabase.from('user_roles').select('user_id').eq('role', 'admin');
       if (admins) {
         for (const admin of admins) {
           await supabase.from('notifications').insert({
@@ -180,23 +164,39 @@ const SharedClassesButton = () => {
         }
       }
 
-      toast({
-        title: 'Đã gửi yêu cầu',
-        description: 'Yêu cầu nhận lớp đã được gửi về Admin',
-      });
-
+      toast({ title: 'Đã gửi yêu cầu', description: 'Yêu cầu nhận lớp đã được gửi về Admin' });
+      
+      // Only close note section AFTER success
       setSelectedClass(null);
       setNote('');
       fetchMyRequests();
     } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Lỗi',
-        description: error.message || 'Không thể gửi yêu cầu',
-      });
+      toast({ variant: 'destructive', title: 'Lỗi', description: error.message || 'Không thể gửi yêu cầu' });
+      // Do NOT close on error
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleNearbySearch = () => {
+    if (!navigator.geolocation) {
+      toast({ variant: 'destructive', title: 'Lỗi', description: 'Trình duyệt không hỗ trợ định vị' });
+      return;
+    }
+    setGettingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setNearbyMode(true);
+        setGettingLocation(false);
+        toast({ title: 'Đã lấy vị trí', description: 'Đang sắp xếp lớp theo khoảng cách' });
+      },
+      () => {
+        setGettingLocation(false);
+        toast({ variant: 'destructive', title: 'Lỗi', description: 'Không thể lấy vị trí. Vui lòng cho phép truy cập vị trí.' });
+      },
+      { enableHighAccuracy: true }
+    );
   };
 
   const formatPrice = (price: number) => {
@@ -209,18 +209,12 @@ const SharedClassesButton = () => {
         variant="outline"
         size="sm"
         className="gap-2 relative"
-        onClick={(e) => {
-          e.stopPropagation();
-          setOpen(true);
-        }}
+        onClick={(e) => { e.stopPropagation(); setOpen(true); }}
       >
         <Briefcase className="w-4 h-4" />
         <span className="hidden sm:inline">Lớp đang trống</span>
         {unreadCount > 0 && (
-          <Badge
-            variant="destructive"
-            className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs"
-          >
+          <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs">
             {unreadCount > 9 ? '9+' : unreadCount}
           </Badge>
         )}
@@ -242,15 +236,32 @@ const SharedClassesButton = () => {
             </DialogDescription>
           </DialogHeader>
 
-          {/* Address Search */}
-          <div className="relative mb-2">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Tìm theo địa chỉ..."
-              value={addressSearch}
-              onChange={(e) => setAddressSearch(e.target.value)}
-              className="pl-10"
-            />
+          {/* Search and Nearby */}
+          <div className="flex gap-2 mb-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Tìm theo địa chỉ..."
+                value={addressSearch}
+                onChange={(e) => setAddressSearch(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Button
+              variant={nearbyMode ? "default" : "outline"}
+              size="sm"
+              className="gap-1 flex-shrink-0"
+              onClick={handleNearbySearch}
+              disabled={gettingLocation}
+            >
+              {gettingLocation ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />}
+              <span className="hidden sm:inline">Gần đây</span>
+            </Button>
+            {nearbyMode && (
+              <Button variant="ghost" size="sm" onClick={() => { setNearbyMode(false); setUserLocation(null); }}>
+                ✕
+              </Button>
+            )}
           </div>
 
           <ScrollArea className="flex-1 min-h-0 max-h-[55vh] pr-4">
@@ -267,20 +278,22 @@ const SharedClassesButton = () => {
               <SortedClassList
                 classes={sharedClasses}
                 addressSearch={addressSearch}
+                nearbyMode={nearbyMode}
+                userLocation={userLocation}
                 selectedClass={selectedClass}
                 myRequests={myRequests}
-                onSelect={(c) => {
-                  if (!myRequests.includes(c.id)) {
-                    setSelectedClass(c);
-                  }
-                }}
+                onSelect={(c) => { if (!myRequests.includes(c.id)) setSelectedClass(c); }}
                 formatPrice={formatPrice}
               />
             )}
           </ScrollArea>
 
           {selectedClass && !myRequests.includes(selectedClass.id) && (
-            <div className="border-t pt-4 space-y-4">
+            <div
+              className="border-t pt-4 space-y-4"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
               <div className="space-y-2">
                 <Label>Ghi chú (không bắt buộc)</Label>
                 <Textarea
@@ -288,6 +301,8 @@ const SharedClassesButton = () => {
                   onChange={(e) => setNote(e.target.value)}
                   placeholder="Giới thiệu ngắn về bản thân hoặc lý do muốn nhận lớp..."
                   rows={2}
+                  onClick={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
                 />
               </div>
               <Button
@@ -319,7 +334,6 @@ const countMatchingChars = (address: string, query: string): number => {
   for (const char of queryLower) {
     if (addrLower.includes(char)) count++;
   }
-  // Bonus for substring match
   if (addrLower.includes(queryLower)) count += queryLower.length * 2;
   return count;
 };
@@ -328,6 +342,8 @@ const countMatchingChars = (address: string, query: string): number => {
 const SortedClassList = ({
   classes,
   addressSearch,
+  nearbyMode,
+  userLocation,
   selectedClass,
   myRequests,
   onSelect,
@@ -335,31 +351,56 @@ const SortedClassList = ({
 }: {
   classes: SharedClass[];
   addressSearch: string;
+  nearbyMode: boolean;
+  userLocation: { lat: number; lng: number } | null;
   selectedClass: SharedClass | null;
   myRequests: string[];
   onSelect: (c: SharedClass) => void;
   formatPrice: (p: number) => string;
 }) => {
-  const sortedClasses = useMemo(() => {
-    if (!addressSearch.trim()) return classes;
-    return [...classes].sort((a, b) => {
-      const scoreA = countMatchingChars(a.address || '', addressSearch);
-      const scoreB = countMatchingChars(b.address || '', addressSearch);
-      return scoreB - scoreA;
+  const classesWithDistance = useMemo(() => {
+    let result = classes.map(c => {
+      let distance: number | null = null;
+      if (userLocation && c.latitude && c.longitude) {
+        distance = haversineDistance(userLocation.lat, userLocation.lng, c.latitude, c.longitude);
+      }
+      return { ...c, _distance: distance };
     });
-  }, [classes, addressSearch]);
+
+    if (nearbyMode && userLocation) {
+      // Filter only classes with location, sort by distance
+      result = result
+        .filter(c => c._distance !== null)
+        .sort((a, b) => (a._distance || 0) - (b._distance || 0));
+    } else if (addressSearch.trim()) {
+      result = [...result].sort((a, b) => {
+        const scoreA = countMatchingChars(a.address || '', addressSearch);
+        const scoreB = countMatchingChars(b.address || '', addressSearch);
+        return scoreB - scoreA;
+      });
+    }
+
+    return result;
+  }, [classes, addressSearch, nearbyMode, userLocation]);
+
+  if (nearbyMode && classesWithDistance.length === 0) {
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        <MapPin className="w-10 h-10 mx-auto mb-3 opacity-50" />
+        <p>Không có lớp nào có vị trí gần bạn</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
-      {sortedClasses.map((classItem) => {
+      {classesWithDistance.map((classItem) => {
         const alreadyRequested = myRequests.includes(classItem.id);
         return (
           <Card
             key={classItem.id}
             className={`transition-all ${
-              alreadyRequested
-                ? 'opacity-60 cursor-not-allowed'
-                : 'cursor-pointer hover:shadow-md'
+              alreadyRequested ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:shadow-md'
             } ${selectedClass?.id === classItem.id ? 'ring-2 ring-primary' : ''}`}
             onClick={(e) => { e.stopPropagation(); onSelect(classItem); }}
           >
@@ -373,9 +414,7 @@ const SortedClassList = ({
                   <Badge variant={classItem.class_type === 'one_on_one' ? 'default' : 'secondary'}>
                     {classItem.class_type === 'one_on_one' ? '1 kèm 1' : 'Nhóm'}
                   </Badge>
-                  {alreadyRequested && (
-                    <Badge variant="outline">Đã gửi yêu cầu</Badge>
-                  )}
+                  {alreadyRequested && <Badge variant="outline">Đã gửi yêu cầu</Badge>}
                 </div>
               </div>
             </CardHeader>
@@ -409,11 +448,18 @@ const SortedClassList = ({
                 <p className="text-sm">
                   <span className="text-primary font-semibold">{formatPrice(classItem.price_per_session)}</span>/buổi
                 </p>
-                {classItem.tutor_percentage && (
-                  <p className="text-xs text-muted-foreground">
-                    Gia sư nhận: {classItem.tutor_percentage}%
-                  </p>
-                )}
+                <div className="flex items-center gap-2">
+                  {classItem.tutor_percentage && (
+                    <p className="text-xs text-muted-foreground">
+                      Gia sư nhận: {classItem.tutor_percentage}%
+                    </p>
+                  )}
+                  {classItem._distance !== null && (
+                    <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200 rounded-md px-2 py-0.5 text-xs font-medium">
+                      📍 {classItem._distance < 1 ? `${(classItem._distance * 1000).toFixed(0)} m` : `${classItem._distance.toFixed(1)} km`}
+                    </Badge>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>

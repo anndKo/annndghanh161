@@ -26,6 +26,7 @@ interface EnrollmentRequest {
   student_phone: string | null;
   student_address: string | null;
   trial_expires_at: string | null;
+  enrollment_days: number | null;
   created_at: string;
   classes?: {
     id: string;
@@ -41,11 +42,13 @@ interface EnrollmentRequest {
 interface AdminEnrollmentApprovalDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onRefresh?: () => void;
 }
 
 const AdminEnrollmentApprovalDialog = ({ 
   open, 
-  onOpenChange 
+  onOpenChange,
+  onRefresh,
 }: AdminEnrollmentApprovalDialogProps) => {
   const { toast } = useToast();
 
@@ -73,8 +76,7 @@ const AdminEnrollmentApprovalDialog = ({
 
       if (error) throw error;
 
-      // Fetch student profiles
-      const studentIds = [...new Set(data?.map(r => r.student_id) || [])];
+      const studentIds = [...new Set(data?.map((r: any) => r.student_id) || [])];
       let profiles: Record<string, { full_name: string; email: string }> = {};
       
       if (studentIds.length > 0) {
@@ -83,12 +85,12 @@ const AdminEnrollmentApprovalDialog = ({
           .select('user_id, full_name, email')
           .in('user_id', studentIds);
         
-        profileData?.forEach(p => {
+        profileData?.forEach((p: any) => {
           profiles[p.user_id] = { full_name: p.full_name, email: p.email };
         });
       }
 
-      const enrichedRequests = (data || []).map(r => ({
+      const enrichedRequests = (data || []).map((r: any) => ({
         ...r,
         profiles: profiles[r.student_id] || null,
       }));
@@ -104,7 +106,6 @@ const AdminEnrollmentApprovalDialog = ({
   const handleApprove = async (request: EnrollmentRequest) => {
     setProcessingId(request.id);
     try {
-      // Update request status
       const { error: updateError } = await supabase
         .from('enrollment_requests')
         .update({ status: 'admin_approved' })
@@ -112,11 +113,17 @@ const AdminEnrollmentApprovalDialog = ({
 
       if (updateError) throw updateError;
 
-      // Add student to class if class_id exists
       if (request.class_id) {
         const enrollmentType = request.request_type === 'trial' ? 'trial' : 'real';
         
-        // Check if enrollment exists
+        // Calculate enrollment_expires_at for real enrollments
+        let enrollmentExpiresAt: string | null = null;
+        if (enrollmentType === 'real' && request.enrollment_days) {
+          const expiresDate = new Date();
+          expiresDate.setDate(expiresDate.getDate() + request.enrollment_days);
+          enrollmentExpiresAt = expiresDate.toISOString();
+        }
+        
         const { data: existingEnrollment } = await supabase
           .from('enrollments')
           .select('id')
@@ -125,26 +132,28 @@ const AdminEnrollmentApprovalDialog = ({
           .maybeSingle();
 
         if (existingEnrollment) {
-          // Update existing enrollment
+          const updateData: any = {
+            status: 'approved',
+            enrollment_type: enrollmentType,
+            trial_expires_at: request.trial_expires_at,
+          };
+          if (enrollmentExpiresAt) updateData.enrollment_expires_at = enrollmentExpiresAt;
+          
           await supabase
             .from('enrollments')
-            .update({
-              status: 'approved',
-              enrollment_type: enrollmentType,
-              trial_expires_at: request.trial_expires_at,
-            })
+            .update(updateData)
             .eq('id', existingEnrollment.id);
         } else {
-          // Create new enrollment
-          await supabase
-            .from('enrollments')
-            .insert({
-              student_id: request.student_id,
-              class_id: request.class_id,
-              status: 'approved',
-              enrollment_type: enrollmentType,
-              trial_expires_at: request.trial_expires_at,
-            });
+          const insertData: any = {
+            student_id: request.student_id,
+            class_id: request.class_id,
+            status: 'approved',
+            enrollment_type: enrollmentType,
+            trial_expires_at: request.trial_expires_at,
+          };
+          if (enrollmentExpiresAt) insertData.enrollment_expires_at = enrollmentExpiresAt;
+          
+          await supabase.from('enrollments').insert(insertData);
         }
       }
 
@@ -155,22 +164,15 @@ const AdminEnrollmentApprovalDialog = ({
         title: request.request_type === 'trial' ? 'Đã duyệt học thử' : 'Đã duyệt học thật',
         message: request.request_type === 'trial' 
           ? `Yêu cầu học thử của bạn đã được duyệt. Thời hạn học thử đến ${request.trial_expires_at ? format(new Date(request.trial_expires_at), 'dd/MM/yyyy', { locale: vi }) : 'N/A'}`
-          : 'Yêu cầu học thật của bạn đã được duyệt. Bạn đã chính thức tham gia lớp học!',
+          : `Yêu cầu học thật của bạn đã được duyệt${request.enrollment_days ? ` (${request.enrollment_days} ngày)` : ''}. Bạn đã chính thức tham gia lớp học!`,
         related_id: request.class_id,
       });
 
-      toast({
-        title: 'Đã duyệt',
-        description: 'Học viên đã được thêm vào lớp',
-      });
-
+      toast({ title: 'Đã duyệt', description: 'Học viên đã được thêm vào lớp' });
       fetchRequests();
+      onRefresh?.();
     } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Lỗi',
-        description: error.message,
-      });
+      toast({ variant: 'destructive', title: 'Lỗi', description: error.message });
     } finally {
       setProcessingId(null);
     }
@@ -186,7 +188,6 @@ const AdminEnrollmentApprovalDialog = ({
 
       if (error) throw error;
 
-      // Notify student
       await supabase.from('notifications').insert({
         user_id: request.student_id,
         type: 'enrollment_rejected',
@@ -194,18 +195,11 @@ const AdminEnrollmentApprovalDialog = ({
         message: 'Yêu cầu đăng ký học của bạn đã bị từ chối.',
       });
 
-      toast({
-        title: 'Đã từ chối',
-        description: 'Yêu cầu đã bị từ chối',
-      });
-
+      toast({ title: 'Đã từ chối', description: 'Yêu cầu đã bị từ chối' });
       fetchRequests();
+      onRefresh?.();
     } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Lỗi',
-        description: error.message,
-      });
+      toast({ variant: 'destructive', title: 'Lỗi', description: error.message });
     } finally {
       setProcessingId(null);
     }
@@ -294,6 +288,13 @@ const AdminEnrollmentApprovalDialog = ({
                     <div className="text-sm">
                       <span className="text-muted-foreground">Số tiền: </span>
                       <span className="font-medium text-primary">{formatPrice(request.amount)}</span>
+                    </div>
+                  )}
+
+                  {request.enrollment_days && request.request_type === 'real' && (
+                    <div className="text-sm">
+                      <span className="text-muted-foreground">Thời hạn học: </span>
+                      <span className="font-medium">{request.enrollment_days} ngày</span>
                     </div>
                   )}
                   

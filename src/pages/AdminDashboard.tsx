@@ -978,9 +978,12 @@ const AdminDashboard = () => {
                   <CardTitle>Duyệt học viên vào lớp</CardTitle>
                   <CardDescription>Xem và duyệt yêu cầu đăng ký lớp của học viên</CardDescription>
                 </div>
-                <Button onClick={() => setEnrollmentApprovalOpen(true)} variant="outline">
+              <Button onClick={() => setEnrollmentApprovalOpen(true)} variant="outline">
                   <ClipboardList className="w-4 h-4 mr-2" />
                   Duyệt yêu cầu học thử/thật
+                </Button>
+                <Button onClick={() => fetchEnrollments()} variant="ghost" size="icon" title="Làm mới">
+                  <RefreshCw className="w-4 h-4" />
                 </Button>
               </CardHeader>
               <CardContent>
@@ -1434,6 +1437,7 @@ const AdminDashboard = () => {
       <AdminEnrollmentApprovalDialog
         open={enrollmentApprovalOpen}
         onOpenChange={setEnrollmentApprovalOpen}
+        onRefresh={fetchEnrollments}
       />
 
       {/* Attendance Stats Dialog */}

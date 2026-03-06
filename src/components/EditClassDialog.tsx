@@ -58,6 +58,8 @@ interface ClassItem {
   schedule_days?: string | null;
   schedule_start_time?: string | null;
   schedule_end_time?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 interface EditClassDialogProps {
@@ -78,6 +80,7 @@ const EditClassDialog = ({
   const [tutors, setTutors] = useState<Tutor[]>([]);
   const [loadingTutors, setLoadingTutors] = useState(false);
   const [discountEnabled, setDiscountEnabled] = useState(false);
+  const [locationEnabled, setLocationEnabled] = useState(false);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -99,12 +102,15 @@ const EditClassDialog = ({
     schedule_days: '',
     schedule_start_time: '',
     schedule_end_time: '',
+    latitude: '',
+    longitude: '',
   });
 
   useEffect(() => {
     if (open && classItem) {
       const hasDiscount = (classItem.discount_percent || 0) > 0;
       setDiscountEnabled(hasDiscount);
+      setLocationEnabled(!!(classItem.latitude && classItem.longitude));
       
       // Parse existing address into parts
       const addressParts = (classItem.address || '').split(', ');
@@ -143,6 +149,8 @@ const EditClassDialog = ({
         schedule_days: classItem.schedule_days || '',
         schedule_start_time: classItem.schedule_start_time?.slice(0, 5) || '',
         schedule_end_time: classItem.schedule_end_time?.slice(0, 5) || '',
+        latitude: classItem.latitude ? String(classItem.latitude) : '',
+        longitude: classItem.longitude ? String(classItem.longitude) : '',
       });
       fetchApprovedTutors();
     }
@@ -219,6 +227,8 @@ const EditClassDialog = ({
           schedule_days: formData.schedule_days || null,
           schedule_start_time: formData.schedule_start_time || null,
           schedule_end_time: formData.schedule_end_time || null,
+          latitude: locationEnabled && formData.latitude ? parseFloat(formData.latitude) : null,
+          longitude: locationEnabled && formData.longitude ? parseFloat(formData.longitude) : null,
         })
         .eq('id', classItem.id);
 
@@ -456,6 +466,70 @@ const EditClassDialog = ({
                 placeholder="VD: 123 Nguyễn Huệ, Phường Bến Nghé"
               />
             </div>
+          </div>
+
+          {/* Location Toggle */}
+          <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-2">
+                <MapPin className="w-4 h-4" />
+                Bật vị trí lớp
+              </Label>
+              <Switch checked={locationEnabled} onCheckedChange={setLocationEnabled} />
+            </div>
+            {locationEnabled && (
+              <div className="space-y-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 w-full"
+                  onClick={() => {
+                    if (!navigator.geolocation) {
+                      toast({ variant: 'destructive', title: 'Lỗi', description: 'Trình duyệt không hỗ trợ định vị' });
+                      return;
+                    }
+                    navigator.geolocation.getCurrentPosition(
+                      (pos) => {
+                        setFormData(prev => ({
+                          ...prev,
+                          latitude: String(pos.coords.latitude),
+                          longitude: String(pos.coords.longitude),
+                        }));
+                        toast({ title: 'Đã lấy vị trí', description: `Tọa độ: ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}` });
+                      },
+                      () => toast({ variant: 'destructive', title: 'Lỗi', description: 'Không thể lấy vị trí' }),
+                      { enableHighAccuracy: true }
+                    );
+                  }}
+                >
+                  <MapPin className="w-4 h-4" />
+                  {formData.latitude ? `📍 ${Number(formData.latitude).toFixed(5)}, ${Number(formData.longitude).toFixed(5)}` : 'Chia sẻ vị trí chính xác'}
+                </Button>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Latitude</Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      value={formData.latitude}
+                      onChange={(e) => setFormData(prev => ({ ...prev, latitude: e.target.value }))}
+                      placeholder="VD: 10.762622"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Longitude</Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      value={formData.longitude}
+                      onChange={(e) => setFormData(prev => ({ ...prev, longitude: e.target.value }))}
+                      placeholder="VD: 106.660172"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Schedule */}

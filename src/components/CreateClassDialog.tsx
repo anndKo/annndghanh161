@@ -65,6 +65,7 @@ const CreateClassDialog = ({
   const [loadingTutors, setLoadingTutors] = useState(false);
   const [tutorSearch, setTutorSearch] = useState('');
   const [discountEnabled, setDiscountEnabled] = useState(false);
+  const [locationEnabled, setLocationEnabled] = useState(false);
   const [priceDisplay, setPriceDisplay] = useState('');
   
   const [formData, setFormData] = useState({
@@ -191,8 +192,8 @@ const CreateClassDialog = ({
         tutor_id: formData.tutor_id && formData.tutor_id !== 'no-tutor' ? formData.tutor_id : null,
         is_active: true,
         address: fullAddress || null,
-        latitude: formData.latitude ? parseFloat(formData.latitude) : null,
-        longitude: formData.longitude ? parseFloat(formData.longitude) : null,
+        latitude: locationEnabled && formData.latitude ? parseFloat(formData.latitude) : null,
+        longitude: locationEnabled && formData.longitude ? parseFloat(formData.longitude) : null,
         trial_days: parseInt(formData.trial_days) || 7,
         discount_percent: discountEnabled ? parseInt(formData.discount_percent) || 0 : 0,
         tutor_percentage: parseInt(formData.tutor_percentage) || 70,
@@ -241,6 +242,7 @@ const CreateClassDialog = ({
       setScheduleItems([]);
       setPriceDisplay('');
       setDiscountEnabled(false);
+      setLocationEnabled(false);
 
       onOpenChange(false);
       onCreated?.();
@@ -441,34 +443,6 @@ const CreateClassDialog = ({
               <MapPin className="w-4 h-4" />
               Địa chỉ (cho lớp offline)
             </Label>
-            {/* Geolocation button */}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="gap-2 w-full"
-              onClick={() => {
-                if (!navigator.geolocation) {
-                  toast({ variant: 'destructive', title: 'Lỗi', description: 'Trình duyệt không hỗ trợ định vị' });
-                  return;
-                }
-                navigator.geolocation.getCurrentPosition(
-                  (pos) => {
-                    setFormData(prev => ({
-                      ...prev,
-                      latitude: String(pos.coords.latitude),
-                      longitude: String(pos.coords.longitude),
-                    }));
-                    toast({ title: 'Đã lấy vị trí', description: `Tọa độ: ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}` });
-                  },
-                  () => toast({ variant: 'destructive', title: 'Lỗi', description: 'Không thể lấy vị trí. Vui lòng cho phép truy cập vị trí.' }),
-                  { enableHighAccuracy: true }
-                );
-              }}
-            >
-              <MapPin className="w-4 h-4" />
-              {formData.latitude ? `📍 ${Number(formData.latitude).toFixed(5)}, ${Number(formData.longitude).toFixed(5)}` : 'Chia sẻ vị trí chính xác'}
-            </Button>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="province">Tỉnh/Thành phố</Label>
@@ -498,6 +472,70 @@ const CreateClassDialog = ({
                 placeholder="VD: 123 Nguyễn Huệ, Phường Bến Nghé"
               />
             </div>
+          </div>
+
+          {/* Location Toggle */}
+          <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-2">
+                <MapPin className="w-4 h-4" />
+                Bật vị trí lớp
+              </Label>
+              <Switch checked={locationEnabled} onCheckedChange={setLocationEnabled} />
+            </div>
+            {locationEnabled && (
+              <div className="space-y-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 w-full"
+                  onClick={() => {
+                    if (!navigator.geolocation) {
+                      toast({ variant: 'destructive', title: 'Lỗi', description: 'Trình duyệt không hỗ trợ định vị' });
+                      return;
+                    }
+                    navigator.geolocation.getCurrentPosition(
+                      (pos) => {
+                        setFormData(prev => ({
+                          ...prev,
+                          latitude: String(pos.coords.latitude),
+                          longitude: String(pos.coords.longitude),
+                        }));
+                        toast({ title: 'Đã lấy vị trí', description: `Tọa độ: ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}` });
+                      },
+                      () => toast({ variant: 'destructive', title: 'Lỗi', description: 'Không thể lấy vị trí' }),
+                      { enableHighAccuracy: true }
+                    );
+                  }}
+                >
+                  <MapPin className="w-4 h-4" />
+                  {formData.latitude ? `📍 ${Number(formData.latitude).toFixed(5)}, ${Number(formData.longitude).toFixed(5)}` : 'Chia sẻ vị trí chính xác'}
+                </Button>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Latitude</Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      value={formData.latitude}
+                      onChange={(e) => setFormData(prev => ({ ...prev, latitude: e.target.value }))}
+                      placeholder="VD: 10.762622"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Longitude</Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      value={formData.longitude}
+                      onChange={(e) => setFormData(prev => ({ ...prev, longitude: e.target.value }))}
+                      placeholder="VD: 106.660172"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Schedule with different times per day */}

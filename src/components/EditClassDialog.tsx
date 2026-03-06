@@ -227,6 +227,8 @@ const EditClassDialog = ({
           schedule_days: formData.schedule_days || null,
           schedule_start_time: formData.schedule_start_time || null,
           schedule_end_time: formData.schedule_end_time || null,
+          latitude: locationEnabled && formData.latitude ? parseFloat(formData.latitude) : null,
+          longitude: locationEnabled && formData.longitude ? parseFloat(formData.longitude) : null,
         })
         .eq('id', classItem.id);
 

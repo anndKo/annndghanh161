@@ -110,6 +110,7 @@ const EditClassDialog = ({
     if (open && classItem) {
       const hasDiscount = (classItem.discount_percent || 0) > 0;
       setDiscountEnabled(hasDiscount);
+      setLocationEnabled(!!(classItem.latitude && classItem.longitude));
       
       // Parse existing address into parts
       const addressParts = (classItem.address || '').split(', ');

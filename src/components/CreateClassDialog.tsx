@@ -443,34 +443,6 @@ const CreateClassDialog = ({
               <MapPin className="w-4 h-4" />
               Địa chỉ (cho lớp offline)
             </Label>
-            {/* Geolocation button */}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="gap-2 w-full"
-              onClick={() => {
-                if (!navigator.geolocation) {
-                  toast({ variant: 'destructive', title: 'Lỗi', description: 'Trình duyệt không hỗ trợ định vị' });
-                  return;
-                }
-                navigator.geolocation.getCurrentPosition(
-                  (pos) => {
-                    setFormData(prev => ({
-                      ...prev,
-                      latitude: String(pos.coords.latitude),
-                      longitude: String(pos.coords.longitude),
-                    }));
-                    toast({ title: 'Đã lấy vị trí', description: `Tọa độ: ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}` });
-                  },
-                  () => toast({ variant: 'destructive', title: 'Lỗi', description: 'Không thể lấy vị trí. Vui lòng cho phép truy cập vị trí.' }),
-                  { enableHighAccuracy: true }
-                );
-              }}
-            >
-              <MapPin className="w-4 h-4" />
-              {formData.latitude ? `📍 ${Number(formData.latitude).toFixed(5)}, ${Number(formData.longitude).toFixed(5)}` : 'Chia sẻ vị trí chính xác'}
-            </Button>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="province">Tỉnh/Thành phố</Label>

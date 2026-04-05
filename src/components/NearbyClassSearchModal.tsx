@@ -64,11 +64,11 @@ const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButto
     };
   }, [open]);
 
-  const requestLocation = async () => {
+  const requestLocation = (): number | undefined => {
     if (!navigator.geolocation) {
       setLocationStatus('error');
       setShowDeniedNotice(true);
-      return;
+      return undefined;
     }
 
     // Check permission state first

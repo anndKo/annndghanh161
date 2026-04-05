@@ -43,13 +43,25 @@ export const useEnrollmentExpiration = (userId: string | undefined) => {
               })
               .eq('id', enrollment.id);
 
-            await supabase.from('notifications').insert({
-              user_id: userId,
-              type: enrollment.enrollment_type === 'trial' ? 'trial_expired' : 'enrollment_expired',
-              title: `Hết hạn ${enrollmentTypeText}`,
-              message: `Thời gian ${enrollmentTypeText} của bạn đã hết. Vui lòng đăng ký lại để tiếp tục học.`,
-              related_id: enrollment.class_id,
-            });
+            // Only send expiry notification if we haven't sent one for this class before
+            const expType = enrollment.enrollment_type === 'trial' ? 'trial_expired' : 'enrollment_expired';
+            const { data: existingExpiry } = await supabase
+              .from('notifications')
+              .select('id')
+              .eq('user_id', userId)
+              .eq('type', expType)
+              .eq('related_id', enrollment.class_id)
+              .limit(1);
+
+            if (!existingExpiry || existingExpiry.length === 0) {
+              await supabase.from('notifications').insert({
+                user_id: userId,
+                type: expType,
+                title: `Hết hạn ${enrollmentTypeText}`,
+                message: `Thời gian ${enrollmentTypeText} của bạn đã hết. Vui lòng đăng ký lại để tiếp tục học.`,
+                related_id: enrollment.class_id,
+              });
+            }
           } 
           // Check if expiring in 24 hours
           else if (expiresDate <= oneDayFromNow && expiresDate > now) {

@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import logoImg from '@/assets/logo.png';
 import { Link, useNavigate } from 'react-router-dom';
+import { useLanguage } from '@/hooks/useLanguage';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -56,6 +57,7 @@ str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd');
 
 const Index = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [classes, setClasses] = useState<any[]>([]);
   const [loadingClasses, setLoadingClasses] = useState(true);
   const [searchFiltersOpen, setSearchFiltersOpen] = useState(false);
@@ -94,7 +96,7 @@ const Index = () => {
     return matchCount;
   };
 
-  const filteredClasses = classes.
+  const filteredClasses = useMemo(() => classes.
   map((c) => {
     if (subjectFilter !== 'all' && c.subject !== subjectFilter) return null;
     if (gradeFilter !== 'all' && c.grade !== gradeFilter) return null;
@@ -125,20 +127,20 @@ const Index = () => {
     return { ...c, _addressScore: addressScore };
   }).
   filter(Boolean).
-  sort((a: any, b: any) => b._addressScore - a._addressScore);
+  sort((a: any, b: any) => b._addressScore - a._addressScore), [classes, subjectFilter, gradeFilter, formatFilter, searchQuery, advancedFilters]);
 
   const features = [
-  { icon: GraduationCap, title: 'Gia sư chất lượng', description: 'Đội ngũ gia sư được tuyển chọn kỹ lưỡng, có trình độ và kinh nghiệm' },
-  { icon: Users, title: 'Học 1 kèm 1 hoặc nhóm', description: 'Linh hoạt lựa chọn hình thức học phù hợp với nhu cầu' },
-  { icon: BookOpen, title: 'Đa dạng môn học', description: 'Từ Toán, Lý, Hóa đến Ngoại ngữ và các môn xã hội' },
-  { icon: Shield, title: 'An toàn & Tin cậy', description: 'Hệ thống xác minh gia sư nghiêm ngặt, đảm bảo chất lượng' }];
+  { icon: GraduationCap, title: t('home.feature1.title'), description: t('home.feature1.desc') },
+  { icon: Users, title: t('home.feature2.title'), description: t('home.feature2.desc') },
+  { icon: BookOpen, title: t('home.feature3.title'), description: t('home.feature3.desc') },
+  { icon: Shield, title: t('home.feature4.title'), description: t('home.feature4.desc') }];
 
 
   const stats = [
-  { value: '500+', label: 'Gia sư' },
-  { value: '10,000+', label: 'Học viên' },
-  { value: '50+', label: 'Môn học' },
-  { value: '98%', label: 'Hài lòng' }];
+  { value: '500+', label: t('home.stats.tutors') },
+  { value: '10,000+', label: t('home.stats.students') },
+  { value: '50+', label: t('home.stats.subjects') },
+  { value: '98%', label: t('home.stats.satisfaction') }];
 
 
   return (
@@ -151,12 +153,12 @@ const Index = () => {
             <span className="text-xl font-bold text-foreground">EduTutor</span>
           </Link>
           <nav className="hidden md:flex items-center gap-6">
-            <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">Tính năng</a>
-            <a href="#classes" className="text-muted-foreground hover:text-foreground transition-colors">Lớp học</a>
-            <Link to="/auth" className="text-muted-foreground hover:text-foreground transition-colors">Đăng nhập</Link>
-            <Button asChild size="sm"><Link to="/auth?tab=signup">Đăng ký ngay</Link></Button>
+            <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">{t('home.features')}</a>
+            <a href="#classes" className="text-muted-foreground hover:text-foreground transition-colors">{t('home.classes')}</a>
+            <Link to="/auth" className="text-muted-foreground hover:text-foreground transition-colors">{t('home.login')}</Link>
+            <Button asChild size="sm"><Link to="/auth?tab=signup">{t('home.signup')}</Link></Button>
           </nav>
-          <Button asChild variant="outline" size="sm" className="md:hidden"><Link to="/auth">Đăng nhập</Link></Button>
+          <Button asChild variant="outline" size="sm" className="md:hidden"><Link to="/auth">{t('home.login')}</Link></Button>
         </div>
       </header>
 
@@ -169,7 +171,7 @@ const Index = () => {
             <div className="space-y-6 md:space-y-8 animate-fade-in">
               <div className="inline-flex items-center gap-2 bg-accent px-3 py-1.5 md:px-4 md:py-2 rounded-full text-xs md:text-sm">
                 <Star className="w-3 h-3 md:w-4 md:h-4 text-secondary" />
-                <span className="text-accent-foreground">Nền tảng gia sư #1 Việt Nam</span>
+                <span className="text-accent-foreground">{t('home.hero.badge')}</span>
               </div>
              <h1 className="font-bold text-left leading-tight">
                 <span className="block whitespace-nowrap 
@@ -178,7 +180,7 @@ const Index = () => {
                   md:text-[40px] 
                   lg:text-[52px] 
                   xl:text-[60px]">
-                  Học tập hiệu quả
+                  {t('home.hero.title1')}
                 </span>
               
                 <span className="block whitespace-nowrap text-gradient 
@@ -187,19 +189,18 @@ const Index = () => {
                   md:text-[40px] 
                   lg:text-[52px] 
                   xl:text-[60px]">
-                  gia sư chất lượng
+                  {t('home.hero.title2')}
                 </span>
               </h1>
               <p className="text-base md:text-lg text-muted-foreground max-w-lg mt-3 md:mt-4">
-                Kết nối với đội ngũ gia sư giỏi, được xác minh kỹ lưỡng. 
-                Học online hoặc offline, theo lớp hoặc 1 kèm 1 - hoàn toàn theo ý bạn.
+                {t('home.hero.desc')}
               </p>
               <div className="flex flex-col sm:flex-row gap-3">
                 <Button asChild size="xl" variant="hero">
-                  <Link to="/auth?tab=signup&role=student">Tìm gia sư ngay<ArrowRight className="w-5 h-5" /></Link>
+                  <Link to="/auth?tab=signup&role=student">{t('home.hero.find_tutor')}<ArrowRight className="w-5 h-5" /></Link>
                 </Button>
                 <Button asChild size="xl" variant="outline">
-                  <Link to="/auth?tab=signup&role=tutor">Đăng ký làm gia sư</Link>
+                  <Link to="/auth?tab=signup&role=tutor">{t('home.hero.become_tutor')}</Link>
                 </Button>
               </div>
 
@@ -213,8 +214,8 @@ const Index = () => {
                   )}
                 </div>
                 <div className="text-sm">
-                  <p className="font-semibold">500+ gia sư đang hoạt động</p>
-                  <p className="text-muted-foreground">Sẵn sàng hỗ trợ bạn</p>
+                  <p className="font-semibold">{t('home.hero.active_tutors')}</p>
+                  <p className="text-muted-foreground">{t('home.hero.ready')}</p>
                 </div>
               </div>
             </div>
@@ -226,20 +227,20 @@ const Index = () => {
                     <div className="w-20 h-20 lg:w-24 lg:h-24 rounded-full bg-primary/10 flex items-center justify-center mb-6 animate-float">
                       <img src={logoImg} alt="EduTutor" className="w-14 h-14 lg:w-16 lg:h-16 rounded-full object-cover" loading="eager" />
                     </div>
-                    <h3 className="text-xl lg:text-2xl font-bold mb-2">Học mọi lúc, mọi nơi</h3>
-                    <p className="text-muted-foreground text-sm">Online • Offline • Linh hoạt</p>
+                     <h3 className="text-xl lg:text-2xl font-bold mb-2">{t('home.hero.learn_anytime')}</h3>
+                     <p className="text-muted-foreground text-sm">{t('home.hero.formats')}</p>
                   </div>
                 </div>
                 <div className="absolute -left-4 top-1/4 glass-card p-3 animate-float" style={{ animationDelay: '0.5s' }}>
                   <div className="flex items-center gap-2">
                     <Clock className="w-6 h-6 text-primary" />
-                    <div><p className="font-semibold text-xs">Linh hoạt</p><p className="text-[10px] text-muted-foreground">24/7</p></div>
+                    <div><p className="font-semibold text-xs">{t('home.hero.flexible')}</p><p className="text-[10px] text-muted-foreground">24/7</p></div>
                   </div>
                 </div>
                 <div className="absolute -right-4 bottom-1/4 glass-card p-3 animate-float" style={{ animationDelay: '1s' }}>
                   <div className="flex items-center gap-2">
                     <MapPin className="w-6 h-6 text-secondary" />
-                    <div><p className="font-semibold text-xs">Toàn quốc</p><p className="text-[10px] text-muted-foreground">63 tỉnh thành</p></div>
+                    <div><p className="font-semibold text-xs">{t('home.hero.nationwide')}</p><p className="text-[10px] text-muted-foreground">{t('home.hero.provinces')}</p></div>
                   </div>
                 </div>
               </div>
@@ -253,9 +254,9 @@ const Index = () => {
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-6">
             <h2 className="text-3xl md:text-4xl font-bold mb-2">
-              <span className="text-gradient">Lớp học</span> đang mở
+              <span className="text-gradient">{t('home.classes')}</span> {t('home.classSection.open')}
             </h2>
-            <p className="text-muted-foreground">Tìm kiếm và đăng ký lớp học phù hợp với bạn</p>
+            <p className="text-muted-foreground">{t('home.classSection.desc')}</p>
           </div>
 
           {/* Search Filters - below title */}
@@ -267,7 +268,7 @@ const Index = () => {
                 className="gap-2">
                 
                 <Search className="w-4 h-4" />
-                {searchFiltersOpen ? 'Thu bộ lọc' : 'Tìm kiếm'}
+                {searchFiltersOpen ? t('home.classSection.collapse') : t('home.classSection.search')}
                 {searchFiltersOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </Button>
               <Button
@@ -276,33 +277,33 @@ const Index = () => {
                 onClick={() => setNearbyModalOpen(true)}>
                 
                 <MapPin className="w-4 h-4" />
-                Tìm lớp gần đây
+                {t('home.classSection.nearby')}
               </Button>
             </div>
             {searchFiltersOpen &&
             <div className="space-y-3 animate-fade-in">
                 {/* Unified search + filters in one row on desktop */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                  <Input placeholder="Tìm theo địa chỉ, mã lớp, tên lớp..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="md:col-span-1" />
+                  <Input placeholder={t('home.classSection.search_placeholder')} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="md:col-span-1" />
                 
                   <Select value={subjectFilter} onValueChange={setSubjectFilter}>
                     <SelectTrigger><SelectValue placeholder="Môn học" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Tất cả môn</SelectItem>
+                      <SelectItem value="all">{t('home.classSection.all_subjects')}</SelectItem>
                       {SUBJECTS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   <Select value={gradeFilter} onValueChange={setGradeFilter}>
                     <SelectTrigger><SelectValue placeholder="Khối lớp" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Tất cả lớp</SelectItem>
+                      <SelectItem value="all">{t('home.classSection.all_grades')}</SelectItem>
                       {GRADES.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   <Select value={formatFilter} onValueChange={setFormatFilter}>
                     <SelectTrigger><SelectValue placeholder="Hình thức" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Tất cả</SelectItem>
+                      <SelectItem value="all">{t('home.classSection.all_formats')}</SelectItem>
                       <SelectItem value="online">Online</SelectItem>
                       <SelectItem value="offline">Offline</SelectItem>
                       <SelectItem value="both">Cả hai</SelectItem>
@@ -316,11 +317,11 @@ const Index = () => {
 
           {/* Class Grid */}
           {loadingClasses ?
-          <div className="text-center py-12 text-muted-foreground">Đang tải lớp học...</div> :
+          <div className="text-center py-12 text-muted-foreground">{t('home.classSection.loading')}</div> :
           filteredClasses.length === 0 ?
           <div className="text-center py-12 text-muted-foreground">
               <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>Không tìm thấy lớp học nào</p>
+              <p>{t('home.classSection.empty')}</p>
             </div> :
 
           <div className="max-h-[800px] overflow-y-auto pr-1">
@@ -335,7 +336,7 @@ const Index = () => {
                           <h3 className="font-semibold line-clamp-2">{classItem.name}</h3>
                         </div>
                         <Badge variant="outline" className="text-xs flex-shrink-0 ml-2">
-                          {classItem.class_type === 'one_on_one' ? '1:1' : 'Nhóm'}
+                          {classItem.class_type === 'one_on_one' ? '1:1' : t('home.classSection.group')}
                         </Badge>
                       </div>
                       <div className="space-y-1.5 text-sm text-muted-foreground">
@@ -359,7 +360,7 @@ const Index = () => {
                     <p className="flex items-start gap-1.5"><MapPin className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" /><span className="break-words">{classItem.address}</span></p>
                     }
                         {classItem.max_students &&
-                    <p className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5 flex-shrink-0" /><span>Tối đa {classItem.max_students} học viên</span></p>
+                    <p className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5 flex-shrink-0" /><span>{t('home.classSection.max')} {classItem.max_students} {t('home.classSection.students')}</span></p>
                     }
                       </div>
                       {/* Price + Register - pushed to bottom */}
@@ -374,11 +375,11 @@ const Index = () => {
                               </span>
                             </div> :
 
-                      <span className="text-lg font-bold text-primary">{formatPriceDisplay(classItem.price_per_session)}/buổi</span>
+                      <span className="text-lg font-bold text-primary">{formatPriceDisplay(classItem.price_per_session)}{t('home.classSection.per_session')}</span>
                       }
                         </div>
                         <Button className="w-full" size="sm" onClick={() => navigate('/auth?tab=signup&role=student')}>
-                          Đăng ký
+                          {t('home.classSection.register')}
                         </Button>
                       </div>
                     </CardContent>
@@ -408,8 +409,8 @@ const Index = () => {
       <section id="features" className="py-20 px-4">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Tại sao chọn <span className="text-gradient">EduTutor</span>?</h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">Chúng tôi mang đến giải pháp học tập toàn diện với đội ngũ gia sư chất lượng cao</p>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">{t('home.features.title')} <span className="text-gradient">EduTutor</span>?</h2>
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">{t('home.features.desc')}</p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {features.map((feature, index) =>
@@ -429,13 +430,13 @@ const Index = () => {
       <section id="about" className="py-20 px-4 bg-muted/50">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Bắt đầu chỉ với <span className="text-gradient">3 bước</span></h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">{t('home.steps.title1')} <span className="text-gradient">{t('home.steps.title2')}</span></h2>
           </div>
           <div className="grid md:grid-cols-3 gap-8">
             {[
-            { step: '01', title: 'Đăng ký tài khoản', desc: 'Tạo tài khoản miễn phí trong 30 giây' },
-            { step: '02', title: 'Chọn môn học', desc: 'Tìm môn học và gia sư phù hợp' },
-            { step: '03', title: 'Bắt đầu học', desc: 'Học online hoặc offline theo lịch của bạn' }].
+            { step: '01', title: t('home.step1.title'), desc: t('home.step1.desc') },
+            { step: '02', title: t('home.step2.title'), desc: t('home.step2.desc') },
+            { step: '03', title: t('home.step3.title'), desc: t('home.step3.desc') }].
             map((item, index) =>
             <div key={index} className="relative animate-fade-in" style={{ animationDelay: `${index * 0.2}s` }}>
                 <div className="bg-card rounded-2xl p-8 border border-border h-full">
@@ -460,14 +461,14 @@ const Index = () => {
           <div className="bg-gradient-hero rounded-3xl p-8 md:p-12 text-center text-primary-foreground relative overflow-hidden">
             <div className="absolute inset-0 bg-[url('data:image/svg+xml,...')] opacity-10" />
             <div className="relative z-10">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">Sẵn sàng nâng cao kiến thức?</h2>
-              <p className="text-primary-foreground/80 text-lg mb-8 max-w-xl mx-auto">Tham gia cùng hàng nghìn học viên đã tin tưởng EduTutor</p>
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">{t('home.cta.title')}</h2>
+              <p className="text-primary-foreground/80 text-lg mb-8 max-w-xl mx-auto">{t('home.cta.desc')}</p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="xl" variant="secondary">
-                  <Link to="/auth?tab=signup&role=student">Đăng ký học ngay<ArrowRight className="w-5 h-5" /></Link>
+                  <Link to="/auth?tab=signup&role=student">{t('home.cta.signup_student')}<ArrowRight className="w-5 h-5" /></Link>
                 </Button>
                 <Button asChild size="xl" className="bg-primary-foreground/20 text-primary-foreground border-2 border-primary-foreground/30 hover:bg-primary-foreground/30">
-                  <Link to="/auth?tab=signup&role=tutor">Trở thành gia sư</Link>
+                  <Link to="/auth?tab=signup&role=tutor">{t('home.cta.signup_tutor')}</Link>
                 </Button>
               </div>
             </div>
@@ -484,18 +485,18 @@ const Index = () => {
                 <img src={logoImg} alt="EduTutor" className="w-10 h-10 rounded-xl object-cover" loading="eager" />
                 <span className="text-xl font-bold">EduTutor</span>
               </Link>
-              <p className="text-muted-foreground max-w-sm">Nền tảng kết nối gia sư và học viên hàng đầu Việt Nam. Học tập hiệu quả, an toàn và tiện lợi.</p>
+              <p className="text-muted-foreground max-w-sm">{t('home.footer.desc')}</p>
             </div>
             <div>
-              <h4 className="font-semibold mb-4">Liên kết</h4>
+              <h4 className="font-semibold mb-4">{t('home.footer.links')}</h4>
               <ul className="space-y-2 text-muted-foreground">
-                <li><a href="#" className="hover:text-foreground transition-colors">Về chúng tôi</a></li>
-                <li><a href="#" className="hover:text-foreground transition-colors">Điều khoản</a></li>
-                <li><a href="#" className="hover:text-foreground transition-colors">Chính sách</a></li>
+                <li><a href="#" className="hover:text-foreground transition-colors">{t('home.footer.about')}</a></li>
+                <li><a href="#" className="hover:text-foreground transition-colors">{t('home.footer.terms')}</a></li>
+                <li><a href="#" className="hover:text-foreground transition-colors">{t('home.footer.policy')}</a></li>
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold mb-4">Liên hệ</h4>
+              <h4 className="font-semibold mb-4">{t('home.footer.contact')}</h4>
               <ul className="space-y-2 text-muted-foreground">
                 <li>Email: contact@edututor.vn</li>
                 <li>Hotline: 1900 xxxx</li>

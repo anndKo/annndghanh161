@@ -10,6 +10,7 @@ interface AuthContextType {
   role: AppRole | null;
   fullName: string | null;
   loading: boolean;
+  isDeleted: boolean;
   signUp: (email: string, password: string, fullName: string, role?: AppRole) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
@@ -23,52 +24,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<AppRole | null>(null);
   const [fullName, setFullName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isDeleted, setIsDeleted] = useState(false);
 
-  const fetchUserRole = async (userId: string) => {
+  const fetchUserData = async (userId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId)
-        .single();
+      const [roleResult, profileResult, deletedResult] = await Promise.all([
+        supabase.from('user_roles').select('role').eq('user_id', userId).single(),
+        supabase.from('profiles').select('full_name').eq('user_id', userId).single(),
+        supabase.from('deleted_accounts').select('id').eq('user_id', userId).limit(1),
+      ]);
       
-      if (error) throw error;
-      setRole(data?.role as AppRole || null);
+      const deleted = deletedResult.data && deletedResult.data.length > 0;
+      setIsDeleted(deleted);
+      
+      if (deleted) {
+        setRole(null);
+        setFullName(null);
+        return;
+      }
+      
+      setRole(roleResult.error ? null : (roleResult.data?.role as AppRole || null));
+      setFullName(profileResult.error ? null : (profileResult.data?.full_name || null));
     } catch (error) {
-      console.error('Error fetching role:', error);
+      console.error('Error fetching user data:', error);
       setRole(null);
-    }
-  };
-
-  const fetchUserProfile = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('full_name')
-        .eq('user_id', userId)
-        .single();
-      
-      if (error) throw error;
-      setFullName(data?.full_name || null);
-    } catch (error) {
-      console.error('Error fetching profile:', error);
       setFullName(null);
     }
   };
 
   useEffect(() => {
-    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Defer role and profile fetch with setTimeout to avoid deadlock
-          setTimeout(() => {
-            fetchUserRole(session.user.id);
-            fetchUserProfile(session.user.id);
-          }, 0);
+          setTimeout(() => fetchUserData(session.user.id), 0);
         } else {
           setRole(null);
           setFullName(null);
@@ -77,14 +68,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       
       if (session?.user) {
-        fetchUserRole(session.user.id);
-        fetchUserProfile(session.user.id);
+        fetchUserData(session.user.id);
       }
       setLoading(false);
     });
@@ -128,7 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, role, fullName, loading, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, role, fullName, loading, isDeleted, signUp, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );

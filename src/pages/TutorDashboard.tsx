@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import logoImg from '@/assets/logo.png';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useLanguage } from '@/hooks/useLanguage';
 import { supabase } from '@/integrations/supabase/untypedClient';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +15,7 @@ import TutorRevenueDialog from '@/components/TutorRevenueDialog';
 import SharedClassesButton from '@/components/SharedClassesButton';
 import { useBackButtonBlock } from '@/hooks/useBackButtonBlock';
 import MobileMenu from '@/components/MobileMenu';
+import UserAvatarMenu from '@/components/UserAvatarMenu';
 import {
   GraduationCap,
   LogOut,
@@ -29,6 +31,7 @@ import {
   Send,
   DollarSign,
   Search,
+  Home,
 } from 'lucide-react';
 import UnreadMessageBadge from '@/components/UnreadMessageBadge';
 import { Input } from '@/components/ui/input';
@@ -77,7 +80,8 @@ interface Enrollment {
 
 const TutorDashboard = () => {
   const navigate = useNavigate();
-  const { user, role, fullName, loading, signOut } = useAuth();
+  const { user, role, fullName, loading, signOut, isDeleted } = useAuth();
+  const { t } = useLanguage();
   const { toast } = useToast();
   
   // Block back button on mobile
@@ -110,15 +114,14 @@ const TutorDashboard = () => {
   const userShortId = user?.id?.slice(0, 8).toUpperCase() || '';
 
   useEffect(() => {
-    if (!loading && !user) {
-      navigate('/auth');
-    }
-  }, [user, loading, navigate]);
+    if (!loading && !user) navigate('/auth');
+    if (!loading && user && isDeleted) navigate('/account-deleted');
+  }, [user, loading, navigate, isDeleted]);
 
   useEffect(() => {
     if (user) {
       checkApplicationStatus();
-      fetchMyClasses();
+      fetchClasses();
     }
   }, [user]);
 
@@ -127,24 +130,16 @@ const TutorDashboard = () => {
     if (!user) return;
 
     const channel = supabase
-      .channel('tutor-classes-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'classes',
-          filter: `tutor_id=eq.${user.id}`,
-        },
-        () => {
-          fetchMyClasses();
-        }
-      )
+      .channel('tutor-classes-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'classes' }, () => {
+        fetchClasses();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'enrollments' }, () => {
+        fetchClasses();
+      })
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [user]);
 
   const checkApplicationStatus = async () => {
@@ -155,18 +150,20 @@ const TutorDashboard = () => {
         .eq('user_id', user?.id)
         .single();
 
-      if (error && error.code !== 'PGRST116') throw error;
-      setApplicationStatus(data?.status || null);
+      if (error) {
+        setApplicationStatus(null);
+      } else {
+        setApplicationStatus(data?.status || null);
+      }
     } catch (error) {
-      console.error('Error checking status:', error);
+      console.error('Error checking application:', error);
     } finally {
       setLoadingData(false);
     }
   };
 
-  const fetchMyClasses = async () => {
+  const fetchClasses = async () => {
     if (!user) return;
-    
     try {
       const { data, error } = await supabase
         .from('classes')
@@ -178,7 +175,6 @@ const TutorDashboard = () => {
       if (error) throw error;
       setClasses(data || []);
 
-      // Fetch enrollments for each class
       if (data && data.length > 0) {
         const classIds = data.map(c => c.id);
         const { data: enrollmentsData } = await supabase
@@ -195,15 +191,16 @@ const TutorDashboard = () => {
             .select('user_id, full_name')
             .in('user_id', studentIds);
 
-          const groupedEnrollments: { [classId: string]: Enrollment[] } = {};
+          const enrollmentsByClass: { [classId: string]: Enrollment[] } = {};
           enrollmentsData.forEach(e => {
-            if (!groupedEnrollments[e.class_id]) groupedEnrollments[e.class_id] = [];
-            groupedEnrollments[e.class_id].push({
+            if (!enrollmentsByClass[e.class_id]) enrollmentsByClass[e.class_id] = [];
+            const profile = profiles?.find(p => p.user_id === e.student_id);
+            enrollmentsByClass[e.class_id].push({
               ...e,
-              student_name: profiles?.find(p => p.user_id === e.student_id)?.full_name || 'Học viên',
+              student_name: profile?.full_name || 'Học viên',
             });
           });
-          setClassEnrollments(groupedEnrollments);
+          setClassEnrollments(enrollmentsByClass);
         }
       }
     } catch (error) {
@@ -218,12 +215,26 @@ const TutorDashboard = () => {
 
   const copyUserId = () => {
     navigator.clipboard.writeText(userShortId);
-    toast({ title: 'Đã sao chép', description: 'ID của bạn đã được sao chép' });
+    toast({ title: t('common.copied'), description: t('common.id_copied') });
   };
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price);
   };
+
+  const totalStudents = Object.values(classEnrollments).reduce((sum, arr) => sum + arr.length, 0);
+
+  // Filter classes based on search query - must be before early returns to maintain hook order
+  const filteredClasses = useMemo(() => classes.filter((c) => {
+    if (!classSearchQuery.trim()) return true;
+    const q = classSearchQuery.toLowerCase();
+    const matchId = (c.display_id || '').toLowerCase().includes(q);
+    const matchName = c.name.toLowerCase().includes(q);
+    const matchStudents = (classEnrollments[c.id] || []).some(s => 
+      (s.student_name || '').toLowerCase().includes(q)
+    );
+    return matchId || matchName || matchStudents;
+  }), [classes, classSearchQuery, classEnrollments]);
 
   if (loading || loadingData) {
     return (
@@ -242,18 +253,16 @@ const TutorDashboard = () => {
             <div className="w-16 h-16 rounded-full bg-accent mx-auto mb-4 flex items-center justify-center">
               <GraduationCap className="w-8 h-8 text-primary" />
             </div>
-            <CardTitle>Hoàn thành hồ sơ gia sư</CardTitle>
-            <CardDescription>
-              Bạn cần hoàn thành hồ sơ đăng ký gia sư trước khi có thể nhận lớp
-            </CardDescription>
+            <CardTitle>{t('tutor.complete_profile')}</CardTitle>
+            <CardDescription>{t('tutor.complete_profile_desc')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Button asChild className="w-full" size="lg">
-              <Link to="/tutor/register">Đăng ký ngay</Link>
+              <Link to="/tutor/register">{t('tutor.register_now')}</Link>
             </Button>
             <Button variant="ghost" className="w-full" onClick={handleLogout}>
               <LogOut className="w-4 h-4 mr-2" />
-              Đăng xuất
+              {t('common.signout')}
             </Button>
           </CardContent>
         </Card>
@@ -270,16 +279,13 @@ const TutorDashboard = () => {
             <div className="w-16 h-16 rounded-full bg-warning/20 mx-auto mb-4 flex items-center justify-center">
               <Clock className="w-8 h-8 text-warning" />
             </div>
-            <CardTitle>Hồ sơ đang chờ duyệt</CardTitle>
-            <CardDescription>
-              Hồ sơ của bạn đã được gửi thành công và đang chờ Admin xét duyệt. 
-              Chúng tôi sẽ thông báo khi có kết quả.
-            </CardDescription>
+            <CardTitle>{t('tutor.profile_pending')}</CardTitle>
+            <CardDescription>{t('tutor.profile_pending_desc')}</CardDescription>
           </CardHeader>
           <CardContent>
             <Button variant="ghost" className="w-full" onClick={handleLogout}>
               <LogOut className="w-4 h-4 mr-2" />
-              Đăng xuất
+              {t('common.signout')}
             </Button>
           </CardContent>
         </Card>
@@ -296,36 +302,19 @@ const TutorDashboard = () => {
             <div className="w-16 h-16 rounded-full bg-destructive/20 mx-auto mb-4 flex items-center justify-center">
               <XCircle className="w-8 h-8 text-destructive" />
             </div>
-            <CardTitle>Hồ sơ không được duyệt</CardTitle>
-            <CardDescription>
-              Rất tiếc, hồ sơ của bạn không đáp ứng yêu cầu. 
-              Vui lòng liên hệ với chúng tôi để biết thêm chi tiết.
-            </CardDescription>
+            <CardTitle>{t('tutor.profile_rejected')}</CardTitle>
+            <CardDescription>{t('tutor.profile_rejected_desc')}</CardDescription>
           </CardHeader>
           <CardContent>
             <Button variant="ghost" className="w-full" onClick={handleLogout}>
               <LogOut className="w-4 h-4 mr-2" />
-              Đăng xuất
+              {t('common.signout')}
             </Button>
           </CardContent>
         </Card>
       </div>
     );
   }
-
-  const totalStudents = Object.values(classEnrollments).reduce((sum, arr) => sum + arr.length, 0);
-
-  // Filter classes based on search query
-  const filteredClasses = classes.filter((c) => {
-    if (!classSearchQuery.trim()) return true;
-    const q = classSearchQuery.toLowerCase();
-    const matchId = (c.display_id || '').toLowerCase().includes(q);
-    const matchName = c.name.toLowerCase().includes(q);
-    const matchStudents = (classEnrollments[c.id] || []).some(s => 
-      (s.student_name || '').toLowerCase().includes(q)
-    );
-    return matchId || matchName || matchStudents;
-  });
 
   // Approved - Full dashboard
   return (
@@ -334,9 +323,9 @@ const TutorDashboard = () => {
       <header className="bg-card border-b border-border sticky top-0 z-50">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
-            <img src={logoImg} alt="EduTutor" className="w-10 h-10 rounded-xl object-cover flex-shrink-0" loading="eager" />
+            <img src={logoImg} alt="EduTutor" className="w-10 h-10 rounded-xl object-cover flex-shrink-0 cursor-pointer" loading="eager" onClick={() => navigate('/tutor')} />
             <div className="min-w-0">
-              <h1 className="font-bold truncate">{fullName || 'Gia sư Dashboard'}</h1>
+              <h1 className="font-bold truncate">{fullName || t('tutor.dashboard')}</h1>
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
                 <span>ID: {userShortId}</span>
                 <Button variant="ghost" size="icon" className="h-4 w-4 p-0" onClick={copyUserId}>
@@ -349,23 +338,28 @@ const TutorDashboard = () => {
           <div className="flex items-center gap-1 md:gap-2">
             <NotificationBell />
             <UnreadMessageBadge onClick={() => setMessagingOpen(true)} />
-            <MobileMenu title="Menu gia sư">
+            <UserAvatarMenu onSignOut={handleLogout} />
+            <MobileMenu title={t('tutor.menu_title')}>
+              <Button variant="ghost" className="w-full justify-start" onClick={() => navigate('/')}>
+                <Home className="w-5 h-5 mr-2" />
+                {t('nav.home')}
+              </Button>
               <SharedClassesButton />
               <Button variant="ghost" className="w-full justify-start" onClick={() => setPaymentRequestOpen(true)}>
                 <Send className="w-5 h-5 mr-2" />
-                Gửi nhiệm vụ
+                {t('tutor.send_task')}
               </Button>
               <Button variant="ghost" className="w-full justify-start" onClick={() => setRevenueOpen(true)}>
                 <DollarSign className="w-5 h-5 mr-2" />
-                Doanh thu
+                {t('tutor.revenue')}
               </Button>
               <Button variant="ghost" className="w-full justify-start" onClick={() => navigate('/guides')}>
                 <BookOpen className="w-5 h-5 mr-2" />
-                Hướng dẫn sử dụng
+                {t('tutor.guides')}
               </Button>
               <Button variant="ghost" className="w-full justify-start text-destructive" onClick={handleLogout}>
                 <LogOut className="w-5 h-5 mr-2" />
-                Đăng xuất
+                {t('common.signout')}
               </Button>
             </MobileMenu>
           </div>
@@ -374,8 +368,8 @@ const TutorDashboard = () => {
 
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <h2 className="text-2xl font-bold mb-2">Xin chào{fullName ? `, ${fullName}` : ''}!</h2>
-          <p className="text-muted-foreground">Chào mừng bạn đến với trang quản lý gia sư</p>
+          <h2 className="text-2xl font-bold mb-2">{t('tutor.hello')}{fullName ? `, ${fullName}` : ''}!</h2>
+          <p className="text-muted-foreground">{t('tutor.welcome')}</p>
         </div>
 
         {/* Stats */}
@@ -384,7 +378,7 @@ const TutorDashboard = () => {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                 <BookOpen className="w-4 h-4" />
-                Lớp đang dạy
+                {t('tutor.classes_teaching')}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -396,7 +390,7 @@ const TutorDashboard = () => {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                 <Users className="w-4 h-4" />
-                Tổng học viên
+                {t('tutor.total_students')}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -408,7 +402,7 @@ const TutorDashboard = () => {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                 <Clock className="w-4 h-4" />
-                Bài tập chờ chấm
+                {t('tutor.pending_assignments')}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -422,11 +416,11 @@ const TutorDashboard = () => {
           <TabsList>
             <TabsTrigger value="classes" className="flex items-center gap-2">
               <BookOpen className="w-4 h-4" />
-              Lớp của tôi
+              {t('tutor.my_classes')}
             </TabsTrigger>
             <TabsTrigger value="students" className="flex items-center gap-2">
               <Users className="w-4 h-4" />
-              Học viên
+              {t('tutor.students_tab')}
             </TabsTrigger>
           </TabsList>
 
@@ -435,15 +429,15 @@ const TutorDashboard = () => {
               <CardHeader>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
-                    <CardTitle>Lớp học của tôi</CardTitle>
-                    <CardDescription>Danh sách các lớp bạn đang phụ trách</CardDescription>
+                    <CardTitle>{t('tutor.my_classes_title')}</CardTitle>
+                    <CardDescription>{t('tutor.my_classes_desc')}</CardDescription>
                   </div>
                   {classes.length > 0 && (
                     <div className="flex items-center gap-2 w-full sm:w-auto">
                       <div className="relative flex-1 sm:w-56">
                         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                         <Input
-                          placeholder="Tìm ID lớp, tên, học viên..."
+                          placeholder={t('tutor.search_placeholder')}
                           value={classSearchQuery}
                           onChange={(e) => { setClassSearchQuery(e.target.value); setSelectedClassId(null); }}
                           className="pl-8 h-9 text-sm"
@@ -452,7 +446,7 @@ const TutorDashboard = () => {
                       {classSearchQuery && (
                         <Button variant="ghost" size="sm" className="h-9 px-2 flex-shrink-0"
                           onClick={() => setClassSearchQuery('')}>
-                          Tất cả
+                          {t('common.all')}
                         </Button>
                       )}
                     </div>
@@ -463,14 +457,14 @@ const TutorDashboard = () => {
                 {classes.length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground">
                     <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p>Bạn chưa được phân công lớp nào</p>
-                    <p className="text-sm">Admin sẽ gán lớp cho bạn khi có lớp phù hợp</p>
+                    <p>{t('tutor.no_classes')}</p>
+                    <p className="text-sm">{t('tutor.no_classes_desc')}</p>
                   </div>
                 ) : filteredClasses.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     <Search className="w-10 h-10 mx-auto mb-3 opacity-50" />
-                    <p>Không tìm thấy lớp phù hợp</p>
-                    <p className="text-sm">Thử từ khóa khác</p>
+                    <p>{t('tutor.no_results')}</p>
+                    <p className="text-sm">{t('tutor.try_other')}</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -487,7 +481,7 @@ const TutorDashboard = () => {
                               <CardTitle className="text-base">{classItem.name}</CardTitle>
                             </div>
                             <Badge variant={classItem.class_type === 'one_on_one' ? 'default' : 'secondary'}>
-                              {classItem.class_type === 'one_on_one' ? '1 kèm 1' : 'Nhóm'}
+                              {classItem.class_type === 'one_on_one' ? t('tutor.one_on_one') : t('tutor.group')}
                             </Badge>
                           </div>
                         </CardHeader>
@@ -512,22 +506,22 @@ const TutorDashboard = () => {
                           )}
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-sm font-medium text-primary">
-                              {formatPrice(classItem.price_per_session)}/buổi
+                              {formatPrice(classItem.price_per_session)}{t('common.per_session')}
                             </span>
                             <Badge variant="outline">
                               <Users className="w-3 h-3 mr-1" />
-                              {classEnrollments[classItem.id]?.length || 0} học viên
+                              {classEnrollments[classItem.id]?.length || 0} {t('tutor.students_count')}
                             </Badge>
                           </div>
                           <div className="p-2 bg-muted/50 rounded text-xs">
-                            <span className="text-muted-foreground">💰 Thu nhập mỗi buổi: </span>
+                            <span className="text-muted-foreground">{t('tutor.income_per_session')}</span>
                             <span className="font-medium text-primary">
                               {formatPrice(classItem.price_per_session * ((classItem.tutor_percentage || 70) / 100))}
                             </span>
                             <span className="text-muted-foreground ml-1">({classItem.tutor_percentage || 70}%)</span>
                           </div>
                           <Button className="w-full mt-3" size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/class/${classItem.id}`); }}>
-                            Vào lớp học
+                            {t('common.enter_class')}
                           </Button>
                         </CardContent>
                       </Card>
@@ -541,14 +535,14 @@ const TutorDashboard = () => {
           <TabsContent value="students">
             <Card>
               <CardHeader>
-                <CardTitle>Học viên của tôi</CardTitle>
-                <CardDescription>Danh sách học viên trong các lớp bạn dạy</CardDescription>
+                <CardTitle>{t('tutor.my_students')}</CardTitle>
+                <CardDescription>{t('tutor.my_students_desc')}</CardDescription>
               </CardHeader>
               <CardContent>
                 {totalStudents === 0 ? (
                   <div className="text-center py-12 text-muted-foreground">
                     <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p>Chưa có học viên nào</p>
+                    <p>{t('tutor.no_students')}</p>
                   </div>
                 ) : (
                   <div className="space-y-6">
@@ -561,7 +555,7 @@ const TutorDashboard = () => {
                           <h4 className="font-medium mb-3 flex items-center gap-2">
                             <BookOpen className="w-4 h-4 text-primary" />
                             {classItem.name}
-                            <Badge variant="outline">{students.length} học viên</Badge>
+                            <Badge variant="outline">{students.length} {t('tutor.students_count')}</Badge>
                           </h4>
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                             {students.map((student) => (

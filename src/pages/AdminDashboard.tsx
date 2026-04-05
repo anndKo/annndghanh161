@@ -19,11 +19,15 @@ import { useBackButtonBlock } from '@/hooks/useBackButtonBlock';
 import AdminEnrollmentRequestDialog from '@/components/AdminEnrollmentRequestDialog';
 import AdminEnrollmentApprovalDialog from '@/components/AdminEnrollmentApprovalDialog';
 import MobileMenu from '@/components/MobileMenu';
+import UserAvatarMenu from '@/components/UserAvatarMenu';
 import AdminAttendanceStats from '@/components/AdminAttendanceStats';
 import AdminPasswordResetRequests from '@/components/AdminPasswordResetRequests';
 import AdminClassRequestsDialog from '@/components/AdminClassRequestsDialog';
 import AdminReportsDialog from '@/components/AdminReportsDialog';
 import AdminMessageManagement from '@/components/AdminMessageManagement';
+import AdminSupportManagement from '@/components/AdminSupportManagement';
+import AdminAccountManagement from '@/components/AdminAccountManagement';
+import AdminAnnouncementManagement from '@/components/AdminAnnouncementManagement';
 import UnreadMessageBadge from '@/components/UnreadMessageBadge';
 import {
   GraduationCap,
@@ -53,6 +57,10 @@ import {
   Briefcase,
   Flag,
   MessageSquare,
+  HelpCircle,
+  Megaphone,
+  UserX,
+  Home,
 } from 'lucide-react';
 import {
   Dialog,
@@ -267,7 +275,7 @@ const SafeImage = ({
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const { user, role, fullName, loading, signOut } = useAuth();
+  const { user, role, fullName, loading, signOut, isDeleted } = useAuth();
   const { toast } = useToast();
   
   // Block back button on mobile
@@ -310,7 +318,10 @@ const AdminDashboard = () => {
   const [classRequestsOpen, setClassRequestsOpen] = useState(false);
   const [reportsOpen, setReportsOpen] = useState(false);
   const [messageManagementOpen, setMessageManagementOpen] = useState(false);
+  const [supportManagementOpen, setSupportManagementOpen] = useState(false);
   const [unreadReportsCount, setUnreadReportsCount] = useState(0);
+  const [announcementManagementOpen, setAnnouncementManagementOpen] = useState(false);
+  const [accountManagementOpen, setAccountManagementOpen] = useState(false);
 
   // Listen for openMessaging event from AdminClassRequestsDialog
   useEffect(() => {
@@ -330,7 +341,8 @@ const AdminDashboard = () => {
     if (!loading && (!user || role !== 'admin')) {
       navigate('/auth');
     }
-  }, [user, role, loading, navigate]);
+    if (!loading && user && isDeleted) navigate('/account-deleted');
+  }, [user, role, loading, navigate, isDeleted]);
 
   useEffect(() => {
     if (user && role === 'admin') {
@@ -774,7 +786,7 @@ const AdminDashboard = () => {
       <header className="bg-card border-b border-border sticky top-0 z-50">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
-            <img src={logoImg} alt="EduTutor" className="w-10 h-10 rounded-xl object-cover flex-shrink-0" loading="eager" />
+            <img src={logoImg} alt="EduTutor" className="w-10 h-10 rounded-xl object-cover flex-shrink-0 cursor-pointer" loading="eager" onClick={() => navigate('/admin')} />
             <div className="min-w-0">
               <h1 className="font-bold truncate">{fullName || 'Admin Dashboard'}</h1>
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -789,7 +801,12 @@ const AdminDashboard = () => {
           <div className="flex items-center gap-1 md:gap-2">
             <NotificationBell />
             <UnreadMessageBadge onClick={() => setMessagingOpen(true)} />
+            <UserAvatarMenu onSignOut={handleLogout} />
             <MobileMenu title="Menu Admin">
+              <Button variant="ghost" className="w-full justify-start" onClick={() => navigate('/')}>
+                <Home className="w-5 h-5 mr-2" />
+                Trang chủ
+              </Button>
               <Button variant="ghost" className="w-full justify-start" onClick={() => setClassRequestsOpen(true)}>
                 <Briefcase className="w-5 h-5 mr-2" />
                 Yêu cầu nhận lớp
@@ -806,6 +823,10 @@ const AdminDashboard = () => {
                 <MessageSquare className="w-5 h-5 mr-2" />
                 Quản lý tin nhắn
               </Button>
+              <Button variant="ghost" className="w-full justify-start" onClick={() => setSupportManagementOpen(true)}>
+                <HelpCircle className="w-5 h-5 mr-2" />
+                Quản lý hỗ trợ khách hàng
+              </Button>
               <Button variant="ghost" className="w-full justify-start relative" onClick={() => { setReportsOpen(true); fetchUnreadReportsCount(); }}>
                 <Flag className="w-5 h-5 mr-2" />
                 Kiểm tra báo cáo
@@ -816,6 +837,14 @@ const AdminDashboard = () => {
               <Button variant="ghost" className="w-full justify-start" onClick={() => navigate('/admin/guides')}>
                 <BookOpen className="w-5 h-5 mr-2" />
                 Quản lý hướng dẫn
+              </Button>
+              <Button variant="ghost" className="w-full justify-start" onClick={() => setAnnouncementManagementOpen(true)}>
+                <Megaphone className="w-5 h-5 mr-2" />
+                Quản lý thông báo hệ thống
+              </Button>
+              <Button variant="ghost" className="w-full justify-start" onClick={() => setAccountManagementOpen(true)}>
+                <UserX className="w-5 h-5 mr-2" />
+                Quản lý tài khoản
               </Button>
               <Button variant="ghost" className="w-full justify-start text-destructive" onClick={handleLogout}>
                 <LogOut className="w-5 h-5 mr-2" />
@@ -1472,6 +1501,25 @@ const AdminDashboard = () => {
       <AdminMessageManagement
         open={messageManagementOpen}
         onOpenChange={setMessageManagementOpen}
+      />
+      <AdminSupportManagement
+        open={supportManagementOpen}
+        onOpenChange={setSupportManagementOpen}
+      />
+
+      {/* Announcement Management Dialog */}
+      <Dialog open={announcementManagementOpen} onOpenChange={setAnnouncementManagementOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Quản lý thông báo hệ thống</DialogTitle>
+            <DialogDescription>Tạo và quản lý thông báo hiển thị cho người dùng.</DialogDescription>
+          </DialogHeader>
+          <AdminAnnouncementManagement />
+        </DialogContent>
+      </Dialog>
+      <AdminAccountManagement
+        open={accountManagementOpen}
+        onOpenChange={setAccountManagementOpen}
       />
     </div>
   );

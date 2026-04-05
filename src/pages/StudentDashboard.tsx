@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback, memo } from 'react';
+import { useState, useEffect, useCallback, memo, useMemo } from 'react';
 import logoImg from '@/assets/logo.png';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useLanguage } from '@/hooks/useLanguage';
 import { supabase } from '@/integrations/supabase/untypedClient';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,6 +22,7 @@ import RealEnrollmentBadge from '@/components/RealEnrollmentBadge';
 import EnrollmentCountdown from '@/components/EnrollmentCountdown';
 import useEnrollmentExpiration from '@/hooks/useEnrollmentExpiration';
 import MobileMenu from '@/components/MobileMenu';
+import UserAvatarMenu from '@/components/UserAvatarMenu';
 import AttendanceCheckIn from '@/components/AttendanceCheckIn';
 import ClassFilterPanel, { FilterState } from '@/components/ClassFilterPanel';
 import StudentScheduleDialog from '@/components/StudentScheduleDialog';
@@ -31,8 +33,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import {
-  GraduationCap, LogOut, BookOpen, Search, Filter, MapPin, Monitor, Users, User, Loader2, MessageCircle, Star, UserPlus, Copy, Clock, CheckCircle2, CreditCard, ClipboardList, Tag, Calendar, CalendarCheck, RefreshCw, CalendarDays, ChevronDown, ChevronUp
+  GraduationCap, LogOut, BookOpen, Search, Filter, MapPin, Monitor, Users, User, Loader2, MessageCircle, Star, UserPlus, Copy, Clock, CheckCircle2, CreditCard, ClipboardList, Tag, Calendar, CalendarCheck, RefreshCw, CalendarDays, ChevronDown, ChevronUp, Home, Flag
 } from 'lucide-react';
 import UnreadMessageBadge from '@/components/UnreadMessageBadge';
 import TutorInfoDialog from '@/components/TutorInfoDialog';
@@ -65,6 +68,7 @@ const TutorNameWithStars = memo(({ tutorId }: { tutorId: string }) => {
   const [avgRating, setAvgRating] = useState<number>(0);
   const [ratingCount, setRatingCount] = useState<number>(0);
   const [isVerified, setIsVerified] = useState(false);
+  const { t } = useLanguage();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -73,7 +77,7 @@ const TutorNameWithStars = memo(({ tutorId }: { tutorId: string }) => {
         supabase.from('tutor_ratings').select('rating').eq('tutor_id', tutorId),
         supabase.from('tutor_applications').select('status').eq('user_id', tutorId).eq('status', 'approved').maybeSingle(),
       ]);
-      setTutorName(profile?.full_name || 'Gia sư');
+      setTutorName(profile?.full_name || t('role.tutor'));
       setIsVerified(!!application);
       if (ratings && ratings.length > 0) {
         const avg = ratings.reduce((s: number, r: any) => s + r.rating, 0) / ratings.length;
@@ -90,7 +94,7 @@ const TutorNameWithStars = memo(({ tutorId }: { tutorId: string }) => {
       <span className="font-medium">{tutorName}</span>
       {isVerified && (
         <Badge className="bg-emerald-500 text-white text-[10px] px-1.5 py-0">
-          <CheckCircle2 className="w-3 h-3 mr-0.5" />Đã xác minh
+          <CheckCircle2 className="w-3 h-3 mr-0.5" />{t('student.verified')}
         </Badge>
       )}
       {ratingCount > 0 && (
@@ -105,8 +109,7 @@ const TutorNameWithStars = memo(({ tutorId }: { tutorId: string }) => {
 TutorNameWithStars.displayName = 'TutorNameWithStars';
 const GRADES = ['Lớp 1', 'Lớp 2', 'Lớp 3', 'Lớp 4', 'Lớp 5', 'Lớp 6', 'Lớp 7', 'Lớp 8', 'Lớp 9', 'Lớp 10', 'Lớp 11', 'Lớp 12'];
 
-// Admin ID for messaging
-const ADMIN_ID = 'd8485baa-9af4-44e4-bf84-850fad8e7034';
+
 
 interface ClassItem {
   id: string;
@@ -145,13 +148,11 @@ interface TopTutor {
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
-  const { user, fullName, loading, signOut } = useAuth();
+  const { user, fullName, loading, signOut, isDeleted } = useAuth();
+  const { t } = useLanguage();
   const { toast } = useToast();
   
-  // Block back button on mobile
   useBackButtonBlock();
-  
-  // Check enrollment expiration (both trial and real)
   useEnrollmentExpiration(user?.id);
   
   const [classes, setClasses] = useState<ClassItem[]>([]);
@@ -166,17 +167,16 @@ const StudentDashboard = () => {
   const [selectedClassForRating, setSelectedClassForRating] = useState<ClassItem | null>(null);
   const [enrollingClassId, setEnrollingClassId] = useState<string | null>(null);
   
-  // Payment dialog state
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [selectedClassForPayment, setSelectedClassForPayment] = useState<ClassItem | null>(null);
   const [messageAdminOpen, setMessageAdminOpen] = useState(false);
   const [autoMessage, setAutoMessage] = useState('');
   const [enrollmentRequestsOpen, setEnrollmentRequestsOpen] = useState(false);
-  const [attendanceOpen, setAttendanceOpen] = useState(false);
+   const [attendanceOpen, setAttendanceOpen] = useState(false);
   const [tutorInfoOpen, setTutorInfoOpen] = useState(false);
   const [selectedTutorForInfo, setSelectedTutorForInfo] = useState<TopTutor | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
-  
+  const [adminId, setAdminId] = useState<string | null>(null);
   const [subjectFilter, setSubjectFilter] = useState<string>('all');
   const [gradeFilter, setGradeFilter] = useState<string>('all');
   const [formatFilter, setFormatFilter] = useState<string>('all');
@@ -190,28 +190,46 @@ const StudentDashboard = () => {
   });
   const [searchFiltersOpen, setSearchFiltersOpen] = useState(false);
   const [nearbyModalOpen, setNearbyModalOpen] = useState(false);
-  // Listen for openMessaging event
+  const [activeTab, setActiveTab] = useState('browse');
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [reportClassId, setReportClassId] = useState<string | null>(null);
+  const [reportClassName, setReportClassName] = useState('');
+  const [reportClassDisplayId, setReportClassDisplayId] = useState('');
+  const [reportContent, setReportContent] = useState('');
+  const [reportTutorId, setReportTutorId] = useState<string | null>(null);
+  const [reportTutorName, setReportTutorName] = useState('');
+
+  useEffect(() => {
+    const fetchAdmin = async () => {
+      const { data } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'admin')
+        .limit(1)
+        .single();
+      if (data) setAdminId(data.user_id);
+    };
+    fetchAdmin();
+  }, []);
+
   useEffect(() => {
     const handleOpenMessaging = (event: CustomEvent<{ partnerId: string; partnerName: string }>) => {
       setMessagingReceiver({ id: event.detail.partnerId, name: event.detail.partnerName });
       setMessagingOpen(true);
     };
-
     window.addEventListener('openMessaging', handleOpenMessaging as EventListener);
-    return () => {
-      window.removeEventListener('openMessaging', handleOpenMessaging as EventListener);
-    };
+    return () => { window.removeEventListener('openMessaging', handleOpenMessaging as EventListener); };
   }, []);
 
   const userShortId = user?.id?.slice(0, 8).toUpperCase() || '';
 
   useEffect(() => {
     if (!loading && !user) navigate('/auth');
-  }, [user, loading, navigate]);
+    if (!loading && user && isDeleted) navigate('/account-deleted');
+  }, [user, loading, navigate, isDeleted]);
 
   useEffect(() => {
     if (user) { 
-      // Fetch all data in parallel for better performance
       Promise.all([fetchClasses(), fetchEnrollments(), fetchTopTutors()]);
     }
   }, [user]);
@@ -240,13 +258,9 @@ const StudentDashboard = () => {
 
   const fetchTopTutors = async () => {
     try {
-      const { data, error } = await supabase
-        .from('tutor_ratings')
-        .select('tutor_id, rating');
-      
+      const { data, error } = await supabase.from('tutor_ratings').select('tutor_id, rating');
       if (error) throw error;
       
-      // Calculate average ratings per tutor
       const tutorRatings: { [key: string]: { total: number; count: number } } = {};
       data?.forEach(r => {
         if (!tutorRatings[r.tutor_id]) tutorRatings[r.tutor_id] = { total: 0, count: 0 };
@@ -254,16 +268,10 @@ const StudentDashboard = () => {
         tutorRatings[r.tutor_id].count += 1;
       });
 
-      // Get tutor names from profiles
       const tutorIds = Object.keys(tutorRatings);
       if (tutorIds.length === 0) return;
 
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('user_id, full_name')
-        .in('user_id', tutorIds);
-
-      // Filter out tutors whose profiles don't exist
+      const { data: profiles } = await supabase.from('profiles').select('user_id, full_name').in('user_id', tutorIds);
       const existingTutorIds = profiles?.map(p => p.user_id) || [];
 
       const topTutorsList: TopTutor[] = tutorIds
@@ -281,11 +289,7 @@ const StudentDashboard = () => {
 
   const fetchTutorClasses = async (tutorId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('classes')
-        .select('*')
-        .eq('tutor_id', tutorId)
-        .eq('is_active', true);
+      const { data, error } = await supabase.from('classes').select('*').eq('tutor_id', tutorId).eq('is_active', true);
       if (error) throw error;
       setTutorClasses(data || []);
     } catch (error) { console.error('Error fetching tutor classes:', error); }
@@ -295,13 +299,12 @@ const StudentDashboard = () => {
     if (!user) return;
     setEnrollingClassId(classItem.id);
     try {
-      // Check if already enrolled
       const existingEnrollment = enrollments.find(e => e.class_id === classItem.id);
       if (existingEnrollment) {
         toast({
           variant: 'destructive',
-          title: 'Đã đăng ký',
-          description: existingEnrollment.status === 'pending' ? 'Bạn đã đăng ký lớp này, đang chờ duyệt' : 'Bạn đã tham gia lớp này',
+          title: t('student.already_enrolled'),
+          description: existingEnrollment.status === 'pending' ? t('student.already_enrolled_pending') : t('student.already_enrolled_approved'),
         });
         return;
       }
@@ -313,18 +316,11 @@ const StudentDashboard = () => {
       });
 
       if (error) throw error;
-
-      // Show payment dialog
       setSelectedClassForPayment(classItem);
       setPaymentDialogOpen(true);
-
       fetchEnrollments();
     } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Lỗi',
-        description: error.message,
-      });
+      toast({ variant: 'destructive', title: t('common.error'), description: error.message });
     } finally {
       setEnrollingClassId(null);
     }
@@ -340,16 +336,53 @@ const StudentDashboard = () => {
 
   const handleLogout = async () => { await signOut(); navigate('/'); };
 
-  const copyUserId = () => {
-    navigator.clipboard.writeText(userShortId);
-    toast({ title: 'Đã sao chép', description: 'ID của bạn đã được sao chép' });
+  const handleReport = async (enrollment: Enrollment) => {
+    const classItem = enrollment.classes;
+    setReportClassId(classItem.id);
+    setReportClassName(classItem.name);
+    setReportClassDisplayId(classItem.display_id || classItem.id.slice(0, 8));
+    setReportTutorId(classItem.tutor_id || null);
+    setReportContent('');
+    // Fetch tutor name
+    if (classItem.tutor_id) {
+      const { data } = await supabase.from('profiles').select('full_name').eq('user_id', classItem.tutor_id).single();
+      setReportTutorName(data?.full_name || 'N/A');
+    } else {
+      setReportTutorName('N/A');
+    }
+    setReportDialogOpen(true);
   };
 
-  // Helper: remove Vietnamese diacritics
+  const submitReport = async () => {
+    if (!reportContent.trim() || !adminId || !user) return;
+    const autoMsg = `🚨 BÁO CÁO LỚP HỌC\n\n🏷️ Mã lớp: ${reportClassDisplayId}\n📚 Tên lớp: ${reportClassName}\n👤 Gia sư: ${reportTutorName}${reportTutorId ? ` (ID: ${reportTutorId.slice(0, 8).toUpperCase()})` : ''}\n\n📝 Nội dung báo cáo:\n${reportContent}\n\n⏰ Thời gian: ${new Date().toLocaleString('vi-VN')}`;
+    
+    await supabase.from('messages').insert({
+      sender_id: user.id,
+      receiver_id: adminId,
+      content: autoMsg,
+    });
+    await supabase.from('notifications').insert({
+      user_id: adminId,
+      type: 'class_report',
+      title: `Báo cáo lớp ${reportClassDisplayId}`,
+      message: reportContent.slice(0, 100),
+      related_id: reportClassId,
+    });
+    toast({ title: t('report.success'), description: t('report.success_desc') });
+    setReportDialogOpen(false);
+    setMessagingReceiver({ id: adminId, name: 'Admin' });
+    setMessagingOpen(true);
+  };
+
+  const copyUserId = () => {
+    navigator.clipboard.writeText(userShortId);
+    toast({ title: t('common.copied'), description: t('common.id_copied') });
+  };
+
   const removeDiacritics = (str: string) =>
     str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd');
 
-  // Fuzzy address match: split query into words, count matches
   const fuzzyAddressMatch = (address: string, query: string): number => {
     if (!query.trim()) return 1;
     const normalizedAddr = removeDiacritics(address.toLowerCase());
@@ -362,14 +395,12 @@ const StudentDashboard = () => {
     return matchCount;
   };
 
-  const filteredClasses = classes
+  const filteredClasses = useMemo(() => classes
     .map(c => {
-      // Basic filters
       if (subjectFilter !== 'all' && c.subject !== subjectFilter) return null;
       if (gradeFilter !== 'all' && c.grade !== gradeFilter) return null;
       if (formatFilter !== 'all' && c.teaching_format !== formatFilter) return null;
       
-      // Unified search: match against display_id, name, or address
       let addressScore = 1;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
@@ -380,21 +411,14 @@ const StudentDashboard = () => {
         if (matchesAddress > 0 && !matchesId && !matchesName) addressScore = matchesAddress;
       }
       
-      // Advanced filters
       if (advancedFilters.subjects.length > 0 && !advancedFilters.subjects.includes(c.subject)) return null;
-      
-      // Filter by days
       if (advancedFilters.days.length > 0 && c.schedule_days) {
         try {
           const scheduleDays = JSON.parse(c.schedule_days);
           const hasMatchingDay = advancedFilters.days.some(day => scheduleDays[day]);
           if (!hasMatchingDay) return null;
-        } catch (e) {
-          return null;
-        }
+        } catch (e) { return null; }
       }
-      
-      // Filter by time
       if ((advancedFilters.startTime || advancedFilters.endTime) && c.schedule_start_time && c.schedule_end_time) {
         if (advancedFilters.startTime && c.schedule_start_time < advancedFilters.startTime) return null;
         if (advancedFilters.endTime && c.schedule_end_time > advancedFilters.endTime) return null;
@@ -403,14 +427,13 @@ const StudentDashboard = () => {
       return { ...c, _addressScore: addressScore };
     })
     .filter(Boolean)
-    .sort((a, b) => (b as any)._addressScore - (a as any)._addressScore) as ClassItem[];
+    .sort((a, b) => (b as any)._addressScore - (a as any)._addressScore) as ClassItem[], [classes, subjectFilter, gradeFilter, formatFilter, searchQuery, advancedFilters]);
 
   const getEnrollmentStatus = (classId: string) => {
     const enrollment = enrollments.find(e => e.class_id === classId);
     return enrollment?.status || null;
   };
 
-  // Get removed enrollments (expired classes)
   const getRemovedEnrollments = async () => {
     if (!user) return [];
     const { data } = await supabase
@@ -441,9 +464,9 @@ const StudentDashboard = () => {
       <header className="bg-card border-b border-border sticky top-0 z-50">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
-            <img src={logoImg} alt="EduTutor" className="w-10 h-10 rounded-xl object-cover flex-shrink-0" loading="eager" />
+            <img src={logoImg} alt="EduTutor" className="w-10 h-10 rounded-xl object-cover flex-shrink-0 cursor-pointer" loading="eager" onClick={() => navigate('/student')} />
             <div className="min-w-0">
-              <h1 className="font-bold truncate">{fullName || 'Học viên'}</h1>
+              <h1 className="font-bold truncate">{fullName || t('student.title')}</h1>
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
                 <span>ID: {userShortId}</span>
                 <Button variant="ghost" size="icon" className="h-4 w-4 p-0" onClick={copyUserId}>
@@ -454,31 +477,42 @@ const StudentDashboard = () => {
           </div>
           
           <div className="flex items-center gap-1 md:gap-2">
-            <NotificationBell />
+            <NotificationBell onNotificationAction={(type, relatedId) => {
+              if (['enrollment_request', 'trial_enrollment'].includes(type)) {
+                setEnrollmentRequestsOpen(true);
+              } else if (['trial_expired', 'enrollment_expired', 'class_expired', 'enrollment_approved', 'enrollment_rejected'].includes(type)) {
+                setActiveTab('enrolled');
+              }
+            }} />
             <UnreadMessageBadge onClick={() => setMessagingOpen(true)} />
-            <MobileMenu title="Menu học viên">
+            <UserAvatarMenu onSignOut={handleLogout} />
+            <MobileMenu title={t('student.menu_title')}>
+              <Button variant="ghost" className="w-full justify-start" onClick={() => navigate('/')}>
+                <Home className="w-5 h-5 mr-2" />
+                {t('nav.home')}
+              </Button>
               <Button variant="ghost" className="w-full justify-start" onClick={() => setScheduleOpen(true)}>
                 <CalendarDays className="w-5 h-5 mr-2" />
-                Lịch học
+                {t('student.schedule')}
               </Button>
               <Button variant="ghost" className="w-full justify-start" onClick={() => setAttendanceOpen(true)}>
                 <CalendarCheck className="w-5 h-5 mr-2" />
-                Điểm danh
+                {t('student.attendance')}
               </Button>
               <Button variant="ghost" className="w-full justify-start" onClick={() => setEnrollmentRequestsOpen(true)}>
                 <ClipboardList className="w-5 h-5 mr-2" />
-                Yêu cầu đăng ký
+                {t('student.enrollment_requests')}
               </Button>
               <Button variant="ghost" className="w-full justify-start" asChild>
-                <Link to="/tutor/register"><UserPlus className="w-5 h-5 mr-2" />Đăng ký gia sư</Link>
+                <Link to="/tutor/register"><UserPlus className="w-5 h-5 mr-2" />{t('student.register_tutor')}</Link>
               </Button>
               <Button variant="ghost" className="w-full justify-start" onClick={() => navigate('/guides')}>
                 <BookOpen className="w-5 h-5 mr-2" />
-                Hướng dẫn sử dụng
+                {t('student.guides')}
               </Button>
               <Button variant="ghost" className="w-full justify-start text-destructive" onClick={handleLogout}>
                 <LogOut className="w-5 h-5 mr-2" />
-                Đăng xuất
+                {t('common.signout')}
               </Button>
             </MobileMenu>
           </div>
@@ -486,27 +520,30 @@ const StudentDashboard = () => {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        <Tabs defaultValue="browse" className="space-y-6">
-          <TabsList className="flex-wrap h-auto gap-1">
-            <TabsTrigger value="browse" className="flex items-center gap-2"><Search className="w-4 h-4" />Tìm lớp</TabsTrigger>
-            <TabsTrigger value="enrolled" className="flex items-center gap-2">
-              <BookOpen className="w-4 h-4" />Lớp của tôi
-              {approvedEnrollments.length > 0 && <Badge variant="secondary">{approvedEnrollments.length}</Badge>}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="flex-wrap h-auto gap-1 p-1">
+            <TabsTrigger value="browse" className="flex items-center gap-1.5 text-xs sm:text-sm px-2 sm:px-3"><Search className="w-3.5 h-3.5" /><span className="hidden xs:inline">{t('student.browse_classes')}</span><span className="xs:hidden">Tìm</span></TabsTrigger>
+            <TabsTrigger value="enrolled" className="flex items-center gap-1.5 text-xs sm:text-sm px-2 sm:px-3">
+              <BookOpen className="w-3.5 h-3.5" /><span className="hidden xs:inline">{t('student.my_classes')}</span><span className="xs:hidden">Lớp</span>
+              {approvedEnrollments.length > 0 && <Badge variant="secondary" className="h-5 text-[10px] px-1.5">{approvedEnrollments.length}</Badge>}
             </TabsTrigger>
-            <TabsTrigger value="pending" className="flex items-center gap-2">
-              <Clock className="w-4 h-4" />Chờ duyệt
-              {pendingEnrollments.length > 0 && <Badge variant="outline">{pendingEnrollments.length}</Badge>}
+            <TabsTrigger value="pending" className="flex items-center gap-1.5 text-xs sm:text-sm px-2 sm:px-3">
+              <Clock className="w-3.5 h-3.5" /><span className="hidden xs:inline">{t('student.pending_classes')}</span><span className="xs:hidden">Chờ</span>
+              {pendingEnrollments.length > 0 && <Badge variant="outline" className="h-5 text-[10px] px-1.5">{pendingEnrollments.length}</Badge>}
             </TabsTrigger>
-            <TabsTrigger value="top-tutors" className="flex items-center gap-2"><Star className="w-4 h-4" />Gia sư nổi bật</TabsTrigger>
+            <TabsTrigger value="enrollment-requests" className="flex items-center gap-1.5 text-xs sm:text-sm px-2 sm:px-3">
+              <ClipboardList className="w-3.5 h-3.5" /><span className="hidden xs:inline">{t('student.enrollment_requests')}</span><span className="xs:hidden">YC</span>
+            </TabsTrigger>
+            <TabsTrigger value="top-tutors" className="flex items-center gap-1.5 text-xs sm:text-sm px-2 sm:px-3"><Star className="w-3.5 h-3.5" /><span className="hidden xs:inline">{t('student.top_tutors')}</span><span className="xs:hidden">GS</span></TabsTrigger>
           </TabsList>
 
           <TabsContent value="browse">
             <Card className="mb-6">
               <CardHeader className="flex flex-row items-center justify-between gap-3">
-                <CardTitle className="text-lg flex items-center gap-2"><Filter className="w-5 h-5" />Bộ lọc & Tìm kiếm</CardTitle>
+                <CardTitle className="text-lg flex items-center gap-2"><Filter className="w-5 h-5" />{t('student.filter_search')}</CardTitle>
                 <Button variant="outline" size="sm" onClick={() => setSearchFiltersOpen((prev) => !prev)}>
                   <Search className="w-4 h-4 mr-2" />
-                  {searchFiltersOpen ? 'Thu bộ lọc' : 'Tìm kiếm'}
+                  {searchFiltersOpen ? t('student.collapse_filter') : t('common.search')}
                   {searchFiltersOpen ? <ChevronUp className="w-4 h-4 ml-2" /> : <ChevronDown className="w-4 h-4 ml-2" />}
                 </Button>
               </CardHeader>
@@ -514,30 +551,24 @@ const StudentDashboard = () => {
                 <CardContent>
                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                     <div className="space-y-2 md:col-span-2">
-                      <Label>Tìm kiếm</Label>
-                      <Input placeholder="Tìm theo địa chỉ, mã lớp, tên lớp..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                      <Label>{t('common.search')}</Label>
+                      <Input placeholder={t('student.search_placeholder')} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                     </div>
-                    <div className="space-y-2"><Label>Môn học</Label><Select value={subjectFilter} onValueChange={setSubjectFilter}><SelectTrigger><SelectValue placeholder="Tất cả môn" /></SelectTrigger><SelectContent><SelectItem value="all">Tất cả môn</SelectItem>{SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
-                    <div className="space-y-2"><Label>Lớp</Label><Select value={gradeFilter} onValueChange={setGradeFilter}><SelectTrigger><SelectValue placeholder="Tất cả lớp" /></SelectTrigger><SelectContent><SelectItem value="all">Tất cả lớp</SelectItem>{GRADES.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}</SelectContent></Select></div>
-                    <div className="space-y-2"><Label>Hình thức</Label><Select value={formatFilter} onValueChange={setFormatFilter}><SelectTrigger><SelectValue placeholder="Tất cả" /></SelectTrigger><SelectContent><SelectItem value="all">Tất cả</SelectItem><SelectItem value="online">Online</SelectItem><SelectItem value="offline">Offline</SelectItem><SelectItem value="both">Cả hai</SelectItem></SelectContent></Select></div>
+                    <div className="space-y-2"><Label>{t('student.subject')}</Label><Select value={subjectFilter} onValueChange={setSubjectFilter}><SelectTrigger><SelectValue placeholder={t('student.all_subjects')} /></SelectTrigger><SelectContent><SelectItem value="all">{t('student.all_subjects')}</SelectItem>{SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
+                    <div className="space-y-2"><Label>{t('student.grade')}</Label><Select value={gradeFilter} onValueChange={setGradeFilter}><SelectTrigger><SelectValue placeholder={t('student.all_grades')} /></SelectTrigger><SelectContent><SelectItem value="all">{t('student.all_grades')}</SelectItem>{GRADES.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}</SelectContent></Select></div>
+                    <div className="space-y-2"><Label>{t('student.format')}</Label><Select value={formatFilter} onValueChange={setFormatFilter}><SelectTrigger><SelectValue placeholder={t('student.all_formats')} /></SelectTrigger><SelectContent><SelectItem value="all">{t('student.all_formats')}</SelectItem><SelectItem value="online">Online</SelectItem><SelectItem value="offline">Offline</SelectItem><SelectItem value="both">{t('common.both')}</SelectItem></SelectContent></Select></div>
                   </div>
                   <div className="flex justify-end mt-2">
-                    <Button variant="outline" size="sm" onClick={() => { setSubjectFilter('all'); setGradeFilter('all'); setFormatFilter('all'); setSearchQuery(''); setAdvancedFilters({ startTime: '', endTime: '', days: [], subjects: [] }); }}>Xóa bộ lọc</Button>
+                    <Button variant="outline" size="sm" onClick={() => { setSubjectFilter('all'); setGradeFilter('all'); setFormatFilter('all'); setSearchQuery(''); setAdvancedFilters({ startTime: '', endTime: '', days: [], subjects: [] }); }}>{t('common.clear_filters')}</Button>
                   </div>
                   
-                  {/* Advanced Filter Panel */}
                   <div className="mt-4">
                     <ClassFilterPanel onFilterChange={setAdvancedFilters} />
                   </div>
-                   {/* Nearby classes button */}
                   <div className="mt-4">
-                    <Button
-                      variant="outline"
-                      className="gap-2"
-                      onClick={() => setNearbyModalOpen(true)}
-                    >
+                    <Button variant="outline" className="gap-2" onClick={() => setNearbyModalOpen(true)}>
                       <MapPin className="w-4 h-4" />
-                      Tìm lớp gần đây
+                      {t('student.nearby')}
                     </Button>
                   </div>
                 </CardContent>
@@ -545,7 +576,7 @@ const StudentDashboard = () => {
             </Card>
 
             {filteredClasses.length === 0 ? (
-              <Card><CardContent className="py-12 text-center text-muted-foreground"><BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" /><p>Chưa có lớp học nào</p></CardContent></Card>
+              <Card><CardContent className="py-12 text-center text-muted-foreground"><BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" /><p>{t('student.no_classes')}</p></CardContent></Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredClasses.map((classItem) => {
@@ -559,7 +590,7 @@ const StudentDashboard = () => {
                             <CardTitle className="text-lg">{classItem.name}</CardTitle>
                             <CardDescription>{classItem.subject} • {classItem.grade}</CardDescription>
                           </div>
-                          <Badge variant={classItem.class_type === 'one_on_one' ? 'default' : 'secondary'}>{classItem.class_type === 'one_on_one' ? <><User className="w-3 h-3 mr-1" />1 kèm 1</> : <><Users className="w-3 h-3 mr-1" />Nhóm</>}</Badge>
+                          <Badge variant={classItem.class_type === 'one_on_one' ? 'default' : 'secondary'}>{classItem.class_type === 'one_on_one' ? <><User className="w-3 h-3 mr-1" />{t('student.one_on_one')}</> : <><Users className="w-3 h-3 mr-1" />{t('student.group')}</>}</Badge>
                         </div>
                       </CardHeader>
                       <CardContent className="space-y-4">
@@ -573,7 +604,6 @@ const StudentDashboard = () => {
                             <span className="truncate">{classItem.address}</span>
                           </div>
                         )}
-                        {/* Schedule display */}
                         {classItem.schedule_days && (
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Calendar className="w-4 h-4" />
@@ -584,7 +614,6 @@ const StudentDashboard = () => {
                           </div>
                         )}
                         <div className="flex items-center justify-between gap-2 flex-wrap">
-                          {/* Price with discount display */}
                           {classItem.discount_percent && classItem.discount_percent > 0 ? (
                             <div className="flex flex-col">
                               <div className="flex items-center gap-2">
@@ -592,20 +621,20 @@ const StudentDashboard = () => {
                                 <span className="text-sm line-through text-muted-foreground">{formatPrice(classItem.price_per_session)}</span>
                               </div>
                               <span className="text-lg font-bold text-primary">
-                                {formatPrice(classItem.price_per_session - (classItem.price_per_session * classItem.discount_percent / 100))}/buổi
+                                {formatPrice(classItem.price_per_session - (classItem.price_per_session * classItem.discount_percent / 100))}{t('common.per_session')}
                                 <span className="text-sm text-destructive ml-1">(-{classItem.discount_percent}%)</span>
                               </span>
                             </div>
                           ) : (
-                            <span className="text-lg font-bold text-primary">{formatPrice(classItem.price_per_session)}/buổi</span>
+                            <span className="text-lg font-bold text-primary">{formatPrice(classItem.price_per_session)}{t('common.per_session')}</span>
                           )}
                           {enrollStatus === 'approved' ? (
-                            <Badge className="bg-success"><CheckCircle2 className="w-3 h-3 mr-1" />Đã tham gia</Badge>
+                            <Badge className="bg-success"><CheckCircle2 className="w-3 h-3 mr-1" />{t('student.joined')}</Badge>
                           ) : enrollStatus === 'pending' ? (
-                            <Badge variant="outline"><Clock className="w-3 h-3 mr-1" />Chờ duyệt</Badge>
+                            <Badge variant="outline"><Clock className="w-3 h-3 mr-1" />{t('student.pending')}</Badge>
                           ) : (
                             <Button size="sm" onClick={() => handleEnrollClass(classItem)} disabled={enrollingClassId === classItem.id}>
-                              {enrollingClassId === classItem.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Đăng ký'}
+                              {enrollingClassId === classItem.id ? <Loader2 className="w-4 h-4 animate-spin" /> : t('common.register')}
                             </Button>
                           )}
                         </div>
@@ -619,17 +648,16 @@ const StudentDashboard = () => {
 
           <TabsContent value="enrolled">
             <Card>
-              <CardHeader><CardTitle>Lớp học của tôi</CardTitle><CardDescription>Các lớp bạn đã được duyệt tham gia</CardDescription></CardHeader>
+              <CardHeader><CardTitle>{t('student.my_classes_title')}</CardTitle><CardDescription>{t('student.my_classes_desc')}</CardDescription></CardHeader>
               <CardContent>
                 {approvedEnrollments.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground"><BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" /><p>Bạn chưa được duyệt vào lớp nào</p></div>
+                  <div className="text-center py-12 text-muted-foreground"><BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" /><p>{t('student.no_approved')}</p></div>
                 ) : (
                   <div className="space-y-4">
                     {approvedEnrollments.map((enrollment) => (
                       <div 
                         key={enrollment.id} 
-                        className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors gap-3"
-                        onClick={() => navigate(`/class/${enrollment.class_id}`)}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors gap-3"
                       >
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -666,23 +694,50 @@ const StudentDashboard = () => {
                           )}
                           {enrollment.classes.tutor_id && <TutorNameWithStars tutorId={enrollment.classes.tutor_id} />}
                         </div>
-                        <div className="flex gap-2 flex-shrink-0">
-                          <Button size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/class/${enrollment.class_id}`); }}>Vào lớp</Button>
-                          {enrollment.classes.tutor_id && (
-                            <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); setSelectedClassForRating(enrollment.classes); setRatingOpen(true); }}><Star className="w-4 h-4 mr-1" /><span className="hidden sm:inline">Đánh giá</span></Button>
-                          )}
+                        <div className="flex gap-2 flex-shrink-0 flex-wrap">
+                          {(() => {
+                            const isTrialExpired = enrollment.enrollment_type === 'trial' && enrollment.trial_expires_at && new Date(enrollment.trial_expires_at) <= new Date();
+                            const isRealExpired = enrollment.enrollment_type === 'real' && enrollment.enrollment_expires_at && new Date(enrollment.enrollment_expires_at) <= new Date();
+                            if (isTrialExpired || isRealExpired) {
+                              return (
+                                <ReEnrollButton
+                                  classId={enrollment.class_id}
+                                  className={enrollment.classes.name}
+                                  classDisplayId={enrollment.classes.display_id}
+                                  onSuccess={() => {
+                                    fetchEnrollments();
+                                    getRemovedEnrollments().then(data => setExpiredEnrollments(data));
+                                  }}
+                                  onOpenMessaging={() => {
+                                    setMessagingReceiver({ id: adminId || '', name: 'Admin' });
+                                    setMessagingOpen(true);
+                                  }}
+                                />
+                              );
+                            }
+                            return (
+                              <>
+                                <Button size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/class/${enrollment.class_id}`); }}>{t('student.enter_class')}</Button>
+                                {enrollment.classes.tutor_id && (
+                                  <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); setSelectedClassForRating(enrollment.classes); setRatingOpen(true); }}><Star className="w-4 h-4 mr-1" /><span className="hidden sm:inline">{t('student.rate')}</span></Button>
+                                )}
+                              </>
+                            );
+                          })()}
+                          <Button variant="ghost" size="sm" className="text-destructive" onClick={(e) => { e.stopPropagation(); handleReport(enrollment); }}>
+                            <Flag className="w-4 h-4 mr-1" /><span className="hidden sm:inline">{t('report.button')}</span>
+                          </Button>
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
 
-                {/* Expired Classes Section */}
                 {expiredEnrollments.length > 0 && (
                   <div className="mt-6 pt-6 border-t border-border">
                     <h4 className="font-semibold text-muted-foreground flex items-center gap-2 mb-4">
                       <RefreshCw className="w-4 h-4" />
-                      Lớp đã hết hạn ({expiredEnrollments.length})
+                      {t('student.expired_classes')} ({expiredEnrollments.length})
                     </h4>
                     <div className="space-y-4">
                       {expiredEnrollments.map((enrollment: any) => (
@@ -694,7 +749,7 @@ const StudentDashboard = () => {
                             <p className="text-xs font-mono text-muted-foreground">{enrollment.classes.display_id}</p>
                             <h3 className="font-semibold">{enrollment.classes.name}</h3>
                             <p className="text-sm text-muted-foreground">{enrollment.classes.subject} • {enrollment.classes.grade}</p>
-                            <p className="text-xs text-destructive mt-1">{enrollment.removal_reason || 'Đã hết hạn'}</p>
+                            <p className="text-xs text-destructive mt-1">{enrollment.removal_reason || t('student.expired')}</p>
                           </div>
                           <ReEnrollButton
                             classId={enrollment.class_id}
@@ -703,6 +758,10 @@ const StudentDashboard = () => {
                             onSuccess={() => {
                               fetchEnrollments();
                               getRemovedEnrollments().then(data => setExpiredEnrollments(data));
+                            }}
+                            onOpenMessaging={() => {
+                              setMessagingReceiver({ id: adminId || '', name: 'Admin' });
+                              setMessagingOpen(true);
                             }}
                           />
                         </div>
@@ -716,10 +775,10 @@ const StudentDashboard = () => {
 
           <TabsContent value="pending">
             <Card>
-              <CardHeader><CardTitle>Lớp chờ duyệt</CardTitle><CardDescription>Các lớp bạn đã đăng ký và đang chờ Admin duyệt</CardDescription></CardHeader>
+              <CardHeader><CardTitle>{t('student.pending_title')}</CardTitle><CardDescription>{t('student.pending_desc')}</CardDescription></CardHeader>
               <CardContent>
                 {pendingEnrollments.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground"><Clock className="w-12 h-12 mx-auto mb-4 opacity-50" /><p>Không có lớp nào đang chờ duyệt</p></div>
+                  <div className="text-center py-12 text-muted-foreground"><Clock className="w-12 h-12 mx-auto mb-4 opacity-50" /><p>{t('student.no_pending')}</p></div>
                 ) : (
                   <div className="space-y-4">
                     {pendingEnrollments.map((enrollment) => (
@@ -729,7 +788,7 @@ const StudentDashboard = () => {
                           <h3 className="font-semibold">{enrollment.classes.name}</h3>
                           <p className="text-sm text-muted-foreground">{enrollment.classes.subject} • {enrollment.classes.grade}</p>
                         </div>
-                        <Badge variant="outline"><Clock className="w-3 h-3 mr-1" />Chờ duyệt</Badge>
+                        <Badge variant="outline"><Clock className="w-3 h-3 mr-1" />{t('student.pending')}</Badge>
                       </div>
                     ))}
                   </div>
@@ -738,13 +797,17 @@ const StudentDashboard = () => {
             </Card>
           </TabsContent>
 
+          <TabsContent value="enrollment-requests">
+            <StudentEnrollmentRequestDialog open={true} onOpenChange={(open) => { if (!open) setActiveTab('browse'); }} />
+          </TabsContent>
+
           <TabsContent value="top-tutors">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card>
-                <CardHeader><CardTitle className="flex items-center gap-2"><Star className="w-5 h-5 text-yellow-500" />Gia sư được đánh giá cao</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="flex items-center gap-2"><Star className="w-5 h-5 text-yellow-500" />{t('student.top_rated_tutors')}</CardTitle></CardHeader>
                 <CardContent>
                   {topTutors.length === 0 ? (
-                    <div className="text-center py-12 text-muted-foreground"><Star className="w-12 h-12 mx-auto mb-4 opacity-50" /><p>Chưa có đánh giá nào</p></div>
+                    <div className="text-center py-12 text-muted-foreground"><Star className="w-12 h-12 mx-auto mb-4 opacity-50" /><p>{t('student.no_ratings')}</p></div>
                   ) : (
                     <div className="space-y-3">
                       {topTutors.map((tutor, index) => (
@@ -764,7 +827,7 @@ const StudentDashboard = () => {
                             </div>
                             <div>
                               <p className="font-medium">{tutor.full_name}</p>
-                              <p className="text-xs text-muted-foreground">{tutor.rating_count} đánh giá</p>
+                              <p className="text-xs text-muted-foreground">{tutor.rating_count} {t('student.reviews')}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-1 text-yellow-500">
@@ -781,19 +844,19 @@ const StudentDashboard = () => {
               <Card>
                 <CardHeader>
                   <CardTitle>
-                    {selectedTutor ? `Lớp của ${selectedTutor.full_name}` : 'Chọn gia sư để xem lớp'}
+                    {selectedTutor ? `${t('student.tutor_classes')} ${selectedTutor.full_name}` : t('student.select_tutor')}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   {!selectedTutor ? (
                     <div className="text-center py-12 text-muted-foreground">
                       <GraduationCap className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                      <p>Nhấn vào gia sư bên trái để xem danh sách lớp</p>
+                      <p>{t('student.select_tutor_hint')}</p>
                     </div>
                   ) : tutorClasses.length === 0 ? (
                     <div className="text-center py-12 text-muted-foreground">
                       <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                      <p>Gia sư này chưa có lớp nào</p>
+                      <p>{t('student.no_tutor_classes')}</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -810,12 +873,12 @@ const StudentDashboard = () => {
                               <Badge variant="outline">{formatPrice(classItem.price_per_session)}</Badge>
                             </div>
                             {enrollStatus === 'approved' ? (
-                              <Badge className="bg-success w-full justify-center"><CheckCircle2 className="w-3 h-3 mr-1" />Đã tham gia</Badge>
+                              <Badge className="bg-success w-full justify-center"><CheckCircle2 className="w-3 h-3 mr-1" />{t('student.joined')}</Badge>
                             ) : enrollStatus === 'pending' ? (
-                              <Badge variant="outline" className="w-full justify-center"><Clock className="w-3 h-3 mr-1" />Chờ duyệt</Badge>
+                              <Badge variant="outline" className="w-full justify-center"><Clock className="w-3 h-3 mr-1" />{t('student.pending')}</Badge>
                             ) : (
                               <Button size="sm" className="w-full" onClick={() => handleEnrollClass(classItem)} disabled={enrollingClassId === classItem.id}>
-                                {enrollingClassId === classItem.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Đăng ký lớp này'}
+                                {enrollingClassId === classItem.id ? <Loader2 className="w-4 h-4 animate-spin" /> : t('student.enroll_this')}
                               </Button>
                             )}
                           </div>
@@ -842,7 +905,7 @@ const StudentDashboard = () => {
       <MessagingSystem 
         open={messageAdminOpen} 
         onOpenChange={setMessageAdminOpen} 
-        defaultReceiverId={ADMIN_ID}
+        defaultReceiverId={adminId || undefined}
         defaultReceiverName="Admin"
         autoMessage={autoMessage}
       />
@@ -856,38 +919,36 @@ const StudentDashboard = () => {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CreditCard className="w-5 h-5 text-primary" />
-              Thông tin thanh toán
+              {t('student.payment_title')}
             </DialogTitle>
-            <DialogDescription>
-              Đăng ký lớp thành công! Vui lòng thanh toán để được duyệt vào lớp.
-            </DialogDescription>
+            <DialogDescription>{t('student.payment_desc')}</DialogDescription>
           </DialogHeader>
           
           {selectedClassForPayment && (
             <div className="space-y-4">
               <div className="p-4 bg-muted rounded-lg space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Mã lớp:</span>
+                  <span className="text-muted-foreground">{t('student.class_id')}:</span>
                   <span className="font-mono font-bold text-primary">
                     {selectedClassForPayment.display_id || selectedClassForPayment.id.slice(0, 8)}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Tên lớp:</span>
+                  <span className="text-muted-foreground">{t('student.class_name')}:</span>
                   <span className="font-medium">{selectedClassForPayment.name}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Môn học:</span>
+                  <span className="text-muted-foreground">{t('student.subject')}:</span>
                   <span>{selectedClassForPayment.subject}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Lớp:</span>
+                  <span className="text-muted-foreground">{t('student.grade')}:</span>
                   <span>{selectedClassForPayment.grade}</span>
                 </div>
                 <div className="border-t border-border pt-3 flex justify-between">
-                  <span className="text-muted-foreground">Học phí:</span>
+                  <span className="text-muted-foreground">{t('student.tuition')}:</span>
                   <span className="text-xl font-bold text-primary">
-                    {formatPrice(selectedClassForPayment.price_per_session)}/buổi
+                    {formatPrice(selectedClassForPayment.price_per_session)}{t('common.per_session')}
                   </span>
                 </div>
               </div>
@@ -895,34 +956,21 @@ const StudentDashboard = () => {
               <div className="flex flex-col gap-2">
                 <Button onClick={handleMessageAdmin} className="w-full">
                   <MessageCircle className="w-4 h-4 mr-2" />
-                  Nhắn tin Admin để thanh toán
+                  {t('student.message_admin')}
                 </Button>
                 <Button variant="outline" onClick={() => setPaymentDialogOpen(false)}>
-                  Đóng
+                  {t('common.close')}
                 </Button>
               </div>
 
-              <p className="text-xs text-muted-foreground text-center">
-                Sau khi thanh toán, Admin sẽ duyệt và bạn có thể vào lớp học.
-              </p>
+              <p className="text-xs text-muted-foreground text-center">{t('student.payment_note')}</p>
             </div>
           )}
         </DialogContent>
       </Dialog>
 
-      {/* Enrollment Requests Dialog */}
-      <StudentEnrollmentRequestDialog
-        open={enrollmentRequestsOpen}
-        onOpenChange={setEnrollmentRequestsOpen}
-      />
-
-      {/* Attendance Check In Dialog */}
-      <AttendanceCheckIn
-        open={attendanceOpen}
-        onOpenChange={setAttendanceOpen}
-      />
-
-      {/* Tutor Info Dialog */}
+      <StudentEnrollmentRequestDialog open={enrollmentRequestsOpen} onOpenChange={setEnrollmentRequestsOpen} />
+      <AttendanceCheckIn open={attendanceOpen} onOpenChange={setAttendanceOpen} />
       {selectedTutorForInfo && (
         <TutorInfoDialog
           open={tutorInfoOpen}
@@ -933,16 +981,9 @@ const StudentDashboard = () => {
           ratingCount={selectedTutorForInfo.rating_count}
         />
       )}
-      
-      {/* Student Schedule Dialog */}
       {user && (
-        <StudentScheduleDialog
-          open={scheduleOpen}
-          onOpenChange={setScheduleOpen}
-          userId={user.id}
-        />
+        <StudentScheduleDialog open={scheduleOpen} onOpenChange={setScheduleOpen} userId={user.id} />
       )}
-
       <NearbyClassSearchModal
         open={nearbyModalOpen}
         onClose={() => setNearbyModalOpen(false)}
@@ -951,6 +992,33 @@ const StudentDashboard = () => {
           handleEnrollClass(classItem);
         }}
       />
+
+      {/* Report Dialog */}
+      <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Flag className="w-5 h-5 text-destructive" />
+              {t('report.title')}
+            </DialogTitle>
+            <DialogDescription>
+              {reportClassDisplayId} - {reportClassName}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Textarea
+              value={reportContent}
+              onChange={(e) => setReportContent(e.target.value)}
+              placeholder={t('report.placeholder')}
+              rows={4}
+            />
+            <Button onClick={submitReport} disabled={!reportContent.trim()} className="w-full">
+              <Flag className="w-4 h-4 mr-2" />
+              {t('report.submit')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

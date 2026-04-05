@@ -58,31 +58,29 @@ const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButto
       setLoading(false);
     };
     fetchClasses();
-    requestLocation();
+    const watchId = requestLocation();
+    return () => {
+      if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
+    };
   }, [open]);
 
-  const requestLocation = async () => {
+  const requestLocation = (): number | undefined => {
     if (!navigator.geolocation) {
       setLocationStatus('error');
       setShowDeniedNotice(true);
-      return;
+      return undefined;
     }
 
-    // Check permission state first
-    try {
-      const perm = await navigator.permissions.query({ name: 'geolocation' });
+    navigator.permissions?.query?.({ name: 'geolocation' }).then(perm => {
       if (perm.state === 'denied') {
         setPermissionDenied(true);
         setLocationStatus('denied');
         setShowDeniedNotice(true);
-        return;
       }
-    } catch {
-      // permissions API not supported, proceed with request
-    }
+    }).catch(() => {});
 
     setLocationStatus('loading');
-    navigator.geolocation.getCurrentPosition(
+    const watchId = navigator.geolocation.watchPosition(
       (pos) => {
         setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         setLocationStatus('found');
@@ -100,6 +98,7 @@ const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButto
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
+    return watchId;
   };
 
   const getDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => {
@@ -312,7 +311,7 @@ const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButto
                         </p>
                       )}
                     </div>
-                    <div className="mt-auto pt-2 border-t border-border flex items-center justify-between">
+                    <div className="mt-auto pt-2 border-t border-border space-y-1.5">
                       <div>
                         {classItem.discount_percent > 0 ? (
                           <div>
@@ -327,9 +326,11 @@ const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButto
                         )}
                       </div>
                       {classItem._distance < Infinity && (
-                        <span className="inline-flex items-center gap-1 text-xs font-medium bg-accent text-accent-foreground px-2 py-0.5 rounded-md">
-                          📍 {classItem._distance < 1 ? `${Math.round(classItem._distance * 1000)}m` : `${classItem._distance.toFixed(1)}km`}
-                        </span>
+                        <div className="flex items-center gap-1.5 text-xs">
+                          <span className="inline-flex items-center gap-1 font-semibold bg-primary/10 text-primary px-2.5 py-1 rounded-lg">
+                            📍 Cách bạn {classItem._distance < 1 ? `${Math.round(classItem._distance * 1000)}m` : `${classItem._distance.toFixed(1)}km`}
+                          </span>
+                        </div>
                       )}
                     </div>
                   </CardContent>

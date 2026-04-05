@@ -82,7 +82,7 @@ const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButto
     }
 
     setLocationStatus('loading');
-    navigator.geolocation.getCurrentPosition(
+    const watchId = navigator.geolocation.watchPosition(
       (pos) => {
         setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         setLocationStatus('found');
@@ -100,6 +100,7 @@ const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButto
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
+    return watchId;
   };
 
   const getDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => {

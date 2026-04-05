@@ -12,6 +12,7 @@ import {
 import { Bell, CheckCheck } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import TutorComplaintDialog from './TutorComplaintDialog';
+import SupportResponseViewer from './SupportResponseViewer';
 
 interface Notification {
   id: string;
@@ -24,7 +25,7 @@ interface Notification {
   user_id?: string;
 }
 
-const NotificationBell = () => {
+const NotificationBell = ({ onNotificationAction }: { onNotificationAction?: (type: string, relatedId?: string) => void }) => {
   const { user, role } = useAuth();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -32,6 +33,8 @@ const NotificationBell = () => {
   const [open, setOpen] = useState(false);
   const [complaintOpen, setComplaintOpen] = useState(false);
   const [complaintNotificationId, setComplaintNotificationId] = useState<string | undefined>();
+  const [supportViewerOpen, setSupportViewerOpen] = useState(false);
+  const [supportRequestId, setSupportRequestId] = useState<string | null>(null);
   const audioEnabledRef = useRef(false);
   const channelRef = useRef<any>(null);
 
@@ -148,9 +151,24 @@ const NotificationBell = () => {
   const handleNotificationClick = (notification: Notification) => {
     if (!notification.is_read) markAsRead(notification.id);
     
-    // Navigate based on notification type
     const type = notification.type;
     const relatedId = notification.related_id;
+
+    // Support response notification (user viewing admin response)
+    if (type === 'support_response' && relatedId) {
+      setSupportRequestId(relatedId);
+      setSupportViewerOpen(true);
+      setOpen(false);
+      return;
+    }
+
+    // Support followup notification (admin viewing user reply)
+    if (type === 'support_followup' && relatedId) {
+      setSupportRequestId(relatedId);
+      setSupportViewerOpen(true);
+      setOpen(false);
+      return;
+    }
 
     if (type === 'payment_confirmed' && role === 'tutor') {
       setComplaintNotificationId(notification.id);
@@ -173,11 +191,15 @@ const NotificationBell = () => {
       }
     }
 
-    // Student: enrollment approved -> go to student dashboard enrolled tab
+    // Student: use callback for navigation
     if (role === 'student') {
-      if (['enrollment_approved', 'enrollment_rejected', 'enrollment_request'].includes(type)) {
+      if (['enrollment_approved', 'enrollment_rejected', 'enrollment_request', 'trial_enrollment', 'trial_expired', 'enrollment_expired', 'class_expired'].includes(type)) {
         setOpen(false);
-        navigate('/student?tab=enrolled');
+        if (onNotificationAction) {
+          onNotificationAction(type, relatedId || undefined);
+        } else {
+          navigate('/student?tab=enrolled');
+        }
         return;
       }
     }
@@ -244,6 +266,12 @@ const NotificationBell = () => {
                         {notification.type === 'payment_confirmed' && role === 'tutor' && (
                           <p className="text-xs text-primary mt-0.5">Bấm để khiếu nại</p>
                         )}
+                        {notification.type === 'support_response' && (
+                          <p className="text-xs text-primary mt-0.5">Bấm để xem phản hồi</p>
+                        )}
+                        {notification.type === 'support_followup' && (
+                          <p className="text-xs text-primary mt-0.5">Bấm để xem phản hồi từ người dùng</p>
+                        )}
                         <p className="text-xs text-muted-foreground mt-1">
                           {formatTime(notification.created_at)}
                         </p>
@@ -264,6 +292,11 @@ const NotificationBell = () => {
         open={complaintOpen}
         onOpenChange={setComplaintOpen}
         notificationId={complaintNotificationId}
+      />
+      <SupportResponseViewer
+        open={supportViewerOpen}
+        onOpenChange={setSupportViewerOpen}
+        requestId={supportRequestId}
       />
     </>
   );

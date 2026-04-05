@@ -1,27 +1,39 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/untypedClient';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, RefreshCw } from 'lucide-react';
 
-// Admin ID for messaging
-const ADMIN_ID = 'd8485baa-9af4-44e4-bf84-850fad8e7034';
-
 interface ReEnrollButtonProps {
   classId: string;
   className: string;
   classDisplayId: string | null;
   onSuccess?: () => void;
+  onOpenMessaging?: (autoMessage: string) => void;
 }
 
-const ReEnrollButton = ({ classId, className, classDisplayId, onSuccess }: ReEnrollButtonProps) => {
+const ReEnrollButton = ({ classId, className, classDisplayId, onSuccess, onOpenMessaging }: ReEnrollButtonProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [adminId, setAdminId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchAdmin = async () => {
+      const { data } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'admin')
+        .limit(1)
+        .single();
+      if (data) setAdminId(data.user_id);
+    };
+    fetchAdmin();
+  }, []);
 
   const handleReEnroll = async () => {
-    if (!user) return;
+    if (!user || !adminId) return;
 
     setLoading(true);
     try {
@@ -32,7 +44,7 @@ const ReEnrollButton = ({ classId, className, classDisplayId, onSuccess }: ReEnr
         .eq('class_id', classId)
         .eq('student_id', user.id);
 
-      const hasPending = existingEnrollments?.some(e => e.status === 'pending');
+      const hasPending = existingEnrollments?.some((e: any) => e.status === 'pending');
       if (hasPending) {
         toast({
           variant: 'destructive',
@@ -42,25 +54,10 @@ const ReEnrollButton = ({ classId, className, classDisplayId, onSuccess }: ReEnr
         return;
       }
 
-      // Delete ALL non-approved old enrollments to avoid unique constraint
-      const toDelete = existingEnrollments?.filter(e => e.status !== 'approved') || [];
-      for (const e of toDelete) {
+      // Delete ALL old enrollments (RLS allows deleting expired approved ones)
+      for (const e of (existingEnrollments || [])) {
         await supabase.from('enrollments').delete().eq('id', e.id);
       }
-
-      // If there's still an approved but expired enrollment, delete it too
-      const stillApproved = existingEnrollments?.find(e => e.status === 'approved');
-      if (stillApproved) {
-        await supabase.from('enrollments').delete().eq('id', stillApproved.id);
-      }
-
-      // Delete ALL old enrollments (any status) to avoid unique constraint
-      await supabase
-        .from('enrollments')
-        .delete()
-        .eq('class_id', classId)
-        .eq('student_id', user.id)
-        .in('status', ['removed', 'expired', 'rejected']);
 
       // Create new enrollment request
       const { error: enrollError } = await supabase
@@ -74,28 +71,35 @@ const ReEnrollButton = ({ classId, className, classDisplayId, onSuccess }: ReEnr
 
       if (enrollError) throw enrollError;
 
-      // Send automatic message to admin
-      const autoMessage = `🔄 Xin chào Admin, tôi muốn đăng ký lại lớp ${classDisplayId || classId.slice(0, 8)} - ${className}. Thời gian học trước đó của tôi đã hết hạn. Xin vui lòng xem xét.`;
+      // Build auto message
+      const displayCode = classDisplayId || classId.slice(0, 8).toUpperCase();
+      const autoMessage = `🔄 Xin chào Admin!\n\n📋 Tôi đã hết hạn học lớp:\n🏷️ Mã lớp: ${displayCode}\n📚 Tên lớp: ${className}\n\n✨ Tôi muốn đăng ký lại lớp này.\nXin Admin vui lòng xem xét và duyệt giúp. Cảm ơn! 🙏`;
 
+      // Send the auto message directly to DB
       await supabase.from('messages').insert({
         sender_id: user.id,
-        receiver_id: ADMIN_ID,
+        receiver_id: adminId,
         content: autoMessage,
       });
 
       // Send notification to admin
       await supabase.from('notifications').insert({
-        user_id: ADMIN_ID,
+        user_id: adminId,
         type: 're_enrollment_request',
         title: 'Yêu cầu đăng ký lại lớp',
-        message: `Học viên muốn đăng ký lại lớp ${className} sau khi hết hạn`,
+        message: `Học viên muốn đăng ký lại lớp ${className} (${displayCode}) sau khi hết hạn`,
         related_id: classId,
       });
 
       toast({
-        title: 'Đã gửi yêu cầu',
-        description: 'Yêu cầu đăng ký lại đã được gửi cho Admin. Vui lòng chờ duyệt.',
+        title: '✅ Đã gửi yêu cầu',
+        description: 'Yêu cầu đăng ký lại và tin nhắn đã được gửi cho Admin.',
       });
+
+      // Open messaging system to show the conversation
+      if (onOpenMessaging) {
+        onOpenMessaging(autoMessage);
+      }
 
       onSuccess?.();
     } catch (error: any) {
@@ -112,9 +116,9 @@ const ReEnrollButton = ({ classId, className, classDisplayId, onSuccess }: ReEnr
   return (
     <Button
       size="sm"
-      onClick={handleReEnroll}
+      onClick={(e) => { e.stopPropagation(); handleReEnroll(); }}
       disabled={loading}
-      className="gap-2"
+      className="gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-md"
     >
       {loading ? (
         <Loader2 className="w-4 h-4 animate-spin" />

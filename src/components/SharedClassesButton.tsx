@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/untypedClient';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -12,10 +12,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Briefcase, MapPin, Monitor, Users, Clock, Loader2, Send, Search, Navigation } from 'lucide-react';
+import { Briefcase, MapPin, Monitor, Users, Clock, Loader2, Send, Search, Navigation, ChevronUp, ChevronDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface SharedClass {
@@ -62,6 +61,22 @@ const SharedClassesButton = () => {
   const [nearbyMode, setNearbyMode] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [gettingLocation, setGettingLocation] = useState(false);
+  const [canScrollUp, setCanScrollUp] = useState(false);
+  const [canScrollDown, setCanScrollDown] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanScrollUp(el.scrollTop > 20);
+    setCanScrollDown(el.scrollTop + el.clientHeight < el.scrollHeight - 20);
+  };
+
+  useEffect(() => {
+    // Check scroll state when classes load
+    const timer = setTimeout(handleScroll, 300);
+    return () => clearTimeout(timer);
+  }, [sharedClasses, nearbyMode, addressSearch]);
 
   useEffect(() => {
     if (user) {
@@ -178,7 +193,9 @@ const SharedClassesButton = () => {
     }
   };
 
-  const handleNearbySearch = () => {
+  const handleNearbySearch = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
     if (!navigator.geolocation) {
       toast({ variant: 'destructive', title: 'Lỗi', description: 'Trình duyệt không hỗ trợ định vị' });
       return;
@@ -252,41 +269,67 @@ const SharedClassesButton = () => {
               size="sm"
               className="gap-1 flex-shrink-0"
               onClick={handleNearbySearch}
+              onPointerDown={(e) => e.stopPropagation()}
               disabled={gettingLocation}
             >
               {gettingLocation ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />}
               <span className="hidden sm:inline">Gần đây</span>
             </Button>
             {nearbyMode && (
-              <Button variant="ghost" size="sm" onClick={() => { setNearbyMode(false); setUserLocation(null); }}>
+              <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setNearbyMode(false); setUserLocation(null); }}>
                 ✕
               </Button>
             )}
           </div>
 
-          <ScrollArea className="flex-1 min-h-0 max-h-[55vh] pr-4">
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-              </div>
-            ) : sharedClasses.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <Briefcase className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>Hiện không có lớp nào đang cần gia sư</p>
-              </div>
-            ) : (
-              <SortedClassList
-                classes={sharedClasses}
-                addressSearch={addressSearch}
-                nearbyMode={nearbyMode}
-                userLocation={userLocation}
-                selectedClass={selectedClass}
-                myRequests={myRequests}
-                onSelect={(c) => { if (!myRequests.includes(c.id)) setSelectedClass(c); }}
-                formatPrice={formatPrice}
-              />
+          {/* Scrollable class list with scroll buttons */}
+          <div className="relative flex-1 min-h-0">
+            <div
+              ref={scrollRef}
+              className="overflow-y-auto max-h-[55vh] pr-2 scroll-smooth"
+              onScroll={handleScroll}
+            >
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                </div>
+              ) : sharedClasses.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Briefcase className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>Hiện không có lớp nào đang cần gia sư</p>
+                </div>
+              ) : (
+                <SortedClassList
+                  classes={sharedClasses}
+                  addressSearch={addressSearch}
+                  nearbyMode={nearbyMode}
+                  userLocation={userLocation}
+                  selectedClass={selectedClass}
+                  myRequests={myRequests}
+                  onSelect={(c) => { if (!myRequests.includes(c.id)) setSelectedClass(c); }}
+                  formatPrice={formatPrice}
+                />
+              )}
+            </div>
+            {/* Scroll up button */}
+            {canScrollUp && (
+              <button
+                onClick={() => scrollRef.current?.scrollBy({ top: -200, behavior: 'smooth' })}
+                className="absolute top-0 left-1/2 -translate-x-1/2 z-10 bg-background/90 border rounded-full p-1 shadow-md hover:bg-accent transition-colors"
+              >
+                <ChevronUp className="w-4 h-4" />
+              </button>
             )}
-          </ScrollArea>
+            {/* Scroll down button */}
+            {canScrollDown && (
+              <button
+                onClick={() => scrollRef.current?.scrollBy({ top: 200, behavior: 'smooth' })}
+                className="absolute bottom-0 left-1/2 -translate-x-1/2 z-10 bg-background/90 border rounded-full p-1 shadow-md hover:bg-accent transition-colors"
+              >
+                <ChevronDown className="w-4 h-4" />
+              </button>
+            )}
+          </div>
 
           {selectedClass && !myRequests.includes(selectedClass.id) && (
             <div

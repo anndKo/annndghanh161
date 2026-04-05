@@ -37,13 +37,19 @@ import {
   Trash2,
   Upload,
   Image as ImageIcon,
+  CheckCircle2,
+  RotateCcw,
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import ConversationReportDialog from '@/components/ConversationReportDialog';
 import ImageViewer from '@/components/ImageViewer';
+import UserAvatar from '@/components/UserAvatar';
+import { formatPriceInput, parsePriceInput } from '@/lib/formatPrice';
+import { numberToVietnameseWords } from '@/lib/numberToWords';
 
 interface Message {
   id: string;
@@ -67,6 +73,7 @@ interface UserProfile {
   full_name: string;
   username: string;
   role?: string;
+  avatar_url?: string | null;
 }
 
 interface Conversation {
@@ -78,12 +85,14 @@ interface Conversation {
   last_message_time: string;
   role?: string;
   last_is_recalled?: boolean;
+  avatar_url?: string | null;
 }
 
 interface SelectedUserWithRole {
   user_id: string;
   full_name: string;
   role?: string;
+  avatar_url?: string | null;
 }
 
 interface MessagingSystemProps {
@@ -142,8 +151,19 @@ const MessagingSystem = ({
   const [showPayBillDialog, setShowPayBillDialog] = useState(false);
   const [payBillFile, setPayBillFile] = useState<File | null>(null);
   const [uploadingBill, setUploadingBill] = useState(false);
+  const [payBillAgreed, setPayBillAgreed] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+
+  // Admin confirm payment dialog
+  const [showAdminConfirmDialog, setShowAdminConfirmDialog] = useState(false);
+  const [adminConfirmClassCode, setAdminConfirmClassCode] = useState('');
+
+  // Student refund dialog
+  const [showRefundDialog, setShowRefundDialog] = useState(false);
+  const [refundContent, setRefundContent] = useState('');
+  const [refundFiles, setRefundFiles] = useState<File[]>([]);
+  const [sendingRefund, setSendingRefund] = useState(false);
 
   // Highlighted message for scroll-to-reply
   const [highlightedMsgId, setHighlightedMsgId] = useState<string | null>(null);
@@ -371,14 +391,14 @@ const MessagingSystem = ({
       if (partnerIds.length === 0) { setConversations([]); return; }
 
       const [profilesResult, rolesResult] = await Promise.all([
-        supabase.from('profiles').select('user_id, full_name').in('user_id', partnerIds),
+        supabase.from('profiles').select('user_id, full_name, avatar_url').in('user_id', partnerIds),
         supabase.from('user_roles').select('user_id, role').in('user_id', partnerIds)
       ]);
 
-      const profileMap = new Map<string, { full_name: string; username: string }>();
+      const profileMap = new Map<string, { full_name: string; username: string; avatar_url?: string | null }>();
       const roleMap = new Map<string, string>();
       (profilesResult.data || []).forEach((p: any) => {
-        const profile = { full_name: p.full_name, username: p.full_name };
+        const profile = { full_name: p.full_name, username: p.full_name, avatar_url: p.avatar_url };
         profileMap.set(p.user_id, profile);
         profileCache.current.set(p.user_id, profile);
       });
@@ -403,6 +423,7 @@ const MessagingSystem = ({
               last_message_time: msg.created_at,
               role: roleMap.get(partnerId) || 'student',
               last_is_recalled: msg.is_recalled,
+              avatar_url: profile.avatar_url,
             });
           }
         } else {
@@ -473,7 +494,7 @@ const MessagingSystem = ({
     setSearching(true);
     try {
       const searchUpper = searchQuery.toUpperCase();
-      const { data, error } = await supabase.from('profiles').select('user_id, full_name').neq('user_id', user?.id).limit(20);
+      const { data, error } = await supabase.from('profiles').select('user_id, full_name, avatar_url').neq('user_id', user?.id).limit(20);
       if (error) throw error;
       const filtered = (data || []).filter((p: any) => {
         const shortId = p.user_id.slice(0, 8).toUpperCase();
@@ -487,7 +508,7 @@ const MessagingSystem = ({
         const roleMap = new Map<string, string>();
         (rolesData || []).forEach((r: any) => { roleMap.set(r.user_id, r.role); roleCache.current.set(r.user_id, r.role); });
         setSearchResults(limitedResults.map((p: any) => ({
-          user_id: p.user_id, full_name: p.full_name, username: p.full_name, role: roleMap.get(p.user_id) || 'student',
+          user_id: p.user_id, full_name: p.full_name, username: p.full_name, role: roleMap.get(p.user_id) || 'student', avatar_url: p.avatar_url,
         })));
       } else {
         setSearchResults([]);
@@ -724,7 +745,8 @@ const MessagingSystem = ({
       const { error: uploadError } = await supabase.storage.from('assignments').upload(fileName, paymentFile);
       if (uploadError) throw uploadError;
       const { data: urlData } = supabase.storage.from('assignments').getPublicUrl(fileName);
-      const paymentMessage = `[PAYMENT:${urlData.publicUrl}:${paymentAmount}]`;
+      const amount = parsePriceInput(paymentAmount);
+      const paymentMessage = `[PAYMENT:${urlData.publicUrl}:${amount}]`;
       await sendMessage(paymentMessage);
       toast({ title: 'Đã gửi', description: 'Yêu cầu thanh toán đã được gửi' });
       setShowPaymentDialog(false);
@@ -738,7 +760,7 @@ const MessagingSystem = ({
   };
 
   const handlePayBillUpload = async () => {
-    if (!payBillFile || !user || !selectedUser) return;
+    if (!payBillFile || !user || !selectedUser || !payBillAgreed) return;
     setUploadingBill(true);
     try {
       const fileExt = payBillFile.name.split('.').pop();
@@ -750,6 +772,7 @@ const MessagingSystem = ({
       toast({ title: 'Đã gửi xác nhận thanh toán' });
       setShowPayBillDialog(false);
       setPayBillFile(null);
+      setPayBillAgreed(false);
     } catch {
       toast({ variant: 'destructive', title: 'Lỗi', description: 'Không thể tải bill lên' });
     } finally {
@@ -766,6 +789,43 @@ const MessagingSystem = ({
     await sendMessage(msg);
     setShowRejectDialog(false);
     setRejectReason('');
+  };
+
+  const handleAdminConfirmPayment = async () => {
+    if (!user || !selectedUser || !adminConfirmClassCode.trim()) return;
+    const msg = `[PAYMENT_CONFIRMED:${adminConfirmClassCode.trim()}]`;
+    await sendMessage(msg);
+    toast({ title: 'Đã xác nhận thanh toán' });
+    setShowAdminConfirmDialog(false);
+    setAdminConfirmClassCode('');
+  };
+
+  const handleSendRefund = async () => {
+    if (!user || !selectedUser || !refundContent.trim()) return;
+    setSendingRefund(true);
+    try {
+      // Upload refund images
+      const imageUrls: string[] = [];
+      for (const file of refundFiles) {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `refunds/${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage.from('assignments').upload(fileName, file);
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage.from('assignments').getPublicUrl(fileName);
+          imageUrls.push(urlData.publicUrl);
+        }
+      }
+      const imagesTag = imageUrls.length > 0 ? `\n[REFUND_IMAGES:${imageUrls.join('|')}]` : '';
+      await sendMessage(`[REFUND_REQUEST]\n💸 Yêu cầu hoàn tiền\n\n📝 Nội dung: ${refundContent.trim()}${imagesTag}`);
+      toast({ title: 'Đã gửi yêu cầu hoàn tiền' });
+      setShowRefundDialog(false);
+      setRefundContent('');
+      setRefundFiles([]);
+    } catch {
+      toast({ variant: 'destructive', title: 'Lỗi', description: 'Không thể gửi yêu cầu' });
+    } finally {
+      setSendingRefund(false);
+    }
   };
 
   const handleSelectUser = async (userProfile: UserProfile | Conversation) => {
@@ -810,6 +870,46 @@ const MessagingSystem = ({
     const content = msg.content;
     const isOwn = msg.sender_id === user?.id;
 
+    // Payment confirmed by admin
+    const confirmMatch = content.match(/\[PAYMENT_CONFIRMED:(.+)\]/);
+    if (confirmMatch) {
+      const classCode = confirmMatch[1];
+      return (
+        <div className="bg-green-500/10 border-2 border-green-500/30 rounded-xl p-4 text-center space-y-2">
+          <CheckCircle2 className="w-10 h-10 text-green-500 mx-auto" />
+          <p className="text-sm font-bold text-green-600">✅ Đã xác nhận thanh toán</p>
+          <p className="text-xs text-muted-foreground">Lớp: <span className="font-mono font-bold">{classCode}</span></p>
+          <p className="text-xs text-green-600/80">Thanh toán đã được Admin xác nhận thành công!</p>
+        </div>
+      );
+    }
+
+    // Refund request
+    const refundMatch = content.match(/\[REFUND_REQUEST\]/);
+    if (refundMatch) {
+      const cleanContent = content.replace(/\[REFUND_REQUEST\]/, '').replace(/\[REFUND_IMAGES:.+\]/, '').trim();
+      const refundImagesMatch = content.match(/\[REFUND_IMAGES:(.+)\]/);
+      const refundImageUrls = refundImagesMatch ? refundImagesMatch[1].split('|') : [];
+      return (
+        <div className="space-y-2 border-2 border-orange-400/30 bg-orange-50/10 rounded-xl p-3">
+          <div className="flex items-center gap-2">
+            <RotateCcw className="w-5 h-5 text-orange-500" />
+            <p className="text-sm font-bold text-orange-600">Yêu cầu hoàn tiền</p>
+          </div>
+          <p className="text-sm whitespace-pre-wrap break-words">{cleanContent}</p>
+          {refundImageUrls.length > 0 && (
+            <div className="grid grid-cols-3 gap-1.5 max-w-[240px]">
+              {refundImageUrls.map((url, i) => (
+                <img key={i} src={url} alt={`Minh chứng ${i + 1}`}
+                  className="w-full aspect-square object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity border border-border"
+                  onClick={() => { setViewImages(refundImageUrls); setViewImageIndex(i); }} />
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
     const paymentMatch = content.match(/\[PAYMENT:(.+):(\d+)\]/);
     if (paymentMatch) {
       const imageUrl = paymentMatch[1];
@@ -821,6 +921,7 @@ const MessagingSystem = ({
             className="max-w-full rounded-lg max-h-48 object-contain cursor-pointer"
             onClick={() => { setViewImages([imageUrl]); setViewImageIndex(0); }} />
           <p className="text-sm font-bold">{formatPrice(amount)}</p>
+          <p className="text-[11px] italic text-muted-foreground capitalize">{numberToVietnameseWords(amount)}</p>
           {!isOwn && (
             <div className="flex flex-wrap gap-2 mt-2">
               <Button size="sm" variant="default" onClick={() => setShowPayBillDialog(true)}>
@@ -835,20 +936,32 @@ const MessagingSystem = ({
       );
     }
 
-    // Bill image
+    // Bill image - with admin confirm & student refund buttons
     const billMatch = content.match(/\[BILL:(.+)\]/);
-    if (billMatch) {
+    if (billMatch && !content.includes('[REFUND_')) {
       const billUrl = billMatch[1];
       const textPart = content.replace(/\[BILL:.+\]/, '').trim();
       return (
         <div className="space-y-2">
           {textPart && <p className="text-sm whitespace-pre-wrap break-words">{textPart}</p>}
-          <div className="relative">
+          <div className="relative max-w-[240px]">
             <img src={billUrl} alt="Bill thanh toán" 
               className="max-w-full rounded-lg max-h-48 object-contain cursor-pointer border border-border"
               onClick={() => { setViewImages([billUrl]); setViewImageIndex(0); }} />
             <Badge className="absolute top-1 left-1 text-[10px]">Bill</Badge>
           </div>
+          {/* Admin sees confirm button on received bill */}
+          {!isOwn && role === 'admin' && (
+            <Button size="sm" variant="default" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => setShowAdminConfirmDialog(true)}>
+              <CheckCircle2 className="w-3 h-3 mr-1" /> Xác nhận thanh toán
+            </Button>
+          )}
+          {/* Student sees refund button on own sent bill */}
+          {isOwn && role === 'student' && (
+            <Button size="sm" variant="outline" className="text-orange-600 border-orange-300" onClick={() => setShowRefundDialog(true)}>
+              <RotateCcw className="w-3 h-3 mr-1" /> Hoàn tiền
+            </Button>
+          )}
         </div>
       );
     }
@@ -896,13 +1009,13 @@ const MessagingSystem = ({
     if (fileMatch) {
       return (
         <a href={fileMatch[1]} target="_blank" rel="noopener noreferrer"
-          className="flex items-center gap-2 p-2 bg-background/50 rounded-lg hover:bg-background/80">
-          <FileText className="w-8 h-8 text-primary" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{fileMatch[2]}</p>
+          className="flex items-center gap-2 p-2 bg-background/50 rounded-lg hover:bg-background/80 max-w-[260px] overflow-hidden">
+          <FileText className="w-8 h-8 text-primary flex-shrink-0" />
+          <div className="flex-1 min-w-0 overflow-hidden">
+            <p className="text-sm font-medium truncate max-w-[180px]">{fileMatch[2]}</p>
             <p className="text-xs opacity-70">Nhấn để tải</p>
           </div>
-          <Download className="w-4 h-4" />
+          <Download className="w-4 h-4 flex-shrink-0" />
         </a>
       );
     }
@@ -1073,11 +1186,13 @@ const MessagingSystem = ({
                         className={`p-4 hover:bg-muted/50 cursor-pointer transition-colors ${isPinned ? 'bg-muted/30' : ''}`}
                         onClick={() => handleSelectUser(conv)}>
                         <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                            isAdmin ? 'bg-blue-900 text-white' : isTutor ? 'bg-orange-100' : 'bg-primary/10'
-                          }`}>
-                            <User className={`w-5 h-5 ${isAdmin ? 'text-white' : isTutor ? 'text-orange-600' : 'text-primary'}`} />
-                          </div>
+                          <UserAvatar
+                            userId={conv.user_id}
+                            avatarUrl={conv.avatar_url}
+                            fullName={conv.full_name}
+                            size="md"
+                            className={isAdmin ? 'ring-blue-900' : isTutor ? 'ring-orange-400' : ''}
+                          />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-2">
                               <div className={`flex items-center gap-1 px-2 py-0.5 rounded cursor-pointer ${
@@ -1136,11 +1251,13 @@ const MessagingSystem = ({
                       <div key={profile.user_id} className="p-4 hover:bg-muted/50 cursor-pointer transition-colors"
                         onClick={() => handleSelectUser(profile)}>
                         <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                            isAdmin ? 'bg-blue-900 text-white' : isTutor ? 'bg-orange-100' : 'bg-primary/10'
-                          }`}>
-                            <User className={`w-5 h-5 ${isAdmin ? 'text-white' : isTutor ? 'text-orange-600' : 'text-primary'}`} />
-                          </div>
+                          <UserAvatar
+                            userId={profile.user_id}
+                            avatarUrl={profile.avatar_url}
+                            fullName={profile.full_name}
+                            size="md"
+                            className={isAdmin ? 'ring-blue-900' : isTutor ? 'ring-orange-400' : ''}
+                          />
                           <div>
                             <div className={`flex items-center gap-1 px-2 py-0.5 rounded ${
                               isAdmin ? 'bg-blue-900 text-white' : isTutor ? 'bg-orange-100 text-orange-800' : ''
@@ -1336,11 +1453,21 @@ const MessagingSystem = ({
             <div className="space-y-2">
               <Label>Ảnh QR / Hóa đơn</Label>
               <Input type="file" accept="image/*" onChange={(e) => setPaymentFile(e.target.files?.[0] || null)} />
-              {paymentFile && <p className="text-sm text-muted-foreground">{paymentFile.name}</p>}
+              {paymentFile && <p className="text-sm text-muted-foreground truncate max-w-full">{paymentFile.name}</p>}
             </div>
             <div className="space-y-2">
               <Label>Số tiền (VND)</Label>
-              <Input type="number" placeholder="150000" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} />
+              <Input 
+                type="text" 
+                placeholder="150,000" 
+                value={paymentAmount} 
+                onChange={(e) => setPaymentAmount(formatPriceInput(e.target.value))} 
+              />
+              {paymentAmount && (
+                <p className="text-xs text-muted-foreground italic capitalize">
+                  {numberToVietnameseWords(parsePriceInput(paymentAmount))}
+                </p>
+              )}
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setShowPaymentDialog(false)} className="flex-1">Hủy</Button>
@@ -1352,27 +1479,27 @@ const MessagingSystem = ({
         </DialogContent>
       </Dialog>
 
-      {/* Pay Bill Upload Dialog */}
-      <Dialog open={showPayBillDialog} onOpenChange={setShowPayBillDialog}>
+      {/* Pay Bill Upload Dialog - with confirmation */}
+      <Dialog open={showPayBillDialog} onOpenChange={(v) => { setShowPayBillDialog(v); if (!v) { setPayBillFile(null); setPayBillAgreed(false); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Xác nhận thanh toán</DialogTitle>
+            <DialogTitle>Xác nhận thanh toán & hoàn tiền</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">Tải ảnh bill/biên lai thanh toán lên để xác nhận</p>
+            <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
+              <p className="font-medium">📋 Chi tiết thanh toán</p>
+              <p className="text-muted-foreground">• Sau khi thanh toán, bạn có thể yêu cầu hoàn tiền nếu có vấn đề.</p>
+              <p className="text-muted-foreground">• Tải ảnh bill/biên lai thanh toán để xác nhận.</p>
+              <p className="text-muted-foreground">• Admin sẽ xác nhận thanh toán của bạn.</p>
+            </div>
             <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
-              <input
-                type="file"
-                id="billUpload"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => setPayBillFile(e.target.files?.[0] || null)}
-              />
+              <input type="file" id="billUpload" accept="image/*" className="hidden"
+                onChange={(e) => setPayBillFile(e.target.files?.[0] || null)} />
               <label htmlFor="billUpload" className="cursor-pointer">
                 {payBillFile ? (
                   <div className="flex items-center justify-center gap-2 text-green-600">
                     <Upload className="w-5 h-5" />
-                    <span className="text-sm font-medium">{payBillFile.name}</span>
+                    <span className="text-sm font-medium truncate max-w-[200px] inline-block">{payBillFile.name}</span>
                   </div>
                 ) : (
                   <div className="text-muted-foreground">
@@ -1382,9 +1509,15 @@ const MessagingSystem = ({
                 )}
               </label>
             </div>
+            <div className="flex items-start gap-2">
+              <Checkbox id="agreePayment" checked={payBillAgreed} onCheckedChange={(v) => setPayBillAgreed(!!v)} />
+              <label htmlFor="agreePayment" className="text-sm cursor-pointer leading-tight">
+                Tôi đồng ý thanh toán và xác nhận thông tin trên là chính xác
+              </label>
+            </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => { setShowPayBillDialog(false); setPayBillFile(null); }} className="flex-1">Hủy</Button>
-              <Button onClick={handlePayBillUpload} disabled={!payBillFile || uploadingBill} className="flex-1">
+              <Button variant="outline" onClick={() => { setShowPayBillDialog(false); setPayBillFile(null); setPayBillAgreed(false); }} className="flex-1">Hủy</Button>
+              <Button onClick={handlePayBillUpload} disabled={!payBillFile || uploadingBill || !payBillAgreed} className="flex-1">
                 {uploadingBill ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
                 Gửi xác nhận
               </Button>
@@ -1402,17 +1535,89 @@ const MessagingSystem = ({
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Lý do từ chối (tùy chọn)</Label>
-              <Textarea
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Nhập lý do từ chối..."
-                rows={3}
-              />
+              <Textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Nhập lý do từ chối..." rows={3} />
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => { setShowRejectDialog(false); setRejectReason(''); }} className="flex-1">Hủy</Button>
               <Button variant="destructive" onClick={handlePaymentReject} className="flex-1">
                 ❌ Xác nhận từ chối
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Admin Confirm Payment Dialog */}
+      <Dialog open={showAdminConfirmDialog} onOpenChange={setShowAdminConfirmDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-green-500" />
+              Xác nhận thanh toán
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 text-center">
+              <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-2" />
+              <p className="font-medium text-green-700">Người dùng đã thanh toán</p>
+              <p className="text-sm text-muted-foreground mt-1">Nhập mã lớp để xác nhận thanh toán cho lớp đó</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Mã lớp</Label>
+              <Input placeholder="VD: CL12345" value={adminConfirmClassCode} onChange={(e) => setAdminConfirmClassCode(e.target.value)} />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => { setShowAdminConfirmDialog(false); setAdminConfirmClassCode(''); }} className="flex-1">Hủy</Button>
+              <Button onClick={handleAdminConfirmPayment} disabled={!adminConfirmClassCode.trim()} className="flex-1 bg-green-600 hover:bg-green-700 text-white">
+                <CheckCircle2 className="w-4 h-4 mr-1" /> Xác nhận
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Student Refund Dialog */}
+      <Dialog open={showRefundDialog} onOpenChange={(v) => { setShowRefundDialog(v); if (!v) { setRefundContent(''); setRefundFiles([]); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RotateCcw className="w-5 h-5 text-orange-500" />
+              Yêu cầu hoàn tiền
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Nội dung yêu cầu</Label>
+              <Textarea value={refundContent} onChange={(e) => setRefundContent(e.target.value)}
+                placeholder="Mô tả lý do hoàn tiền..." rows={3} />
+            </div>
+            <div className="space-y-2">
+              <Label>Ảnh minh chứng (tối đa 5 ảnh)</Label>
+              <Input type="file" accept="image/*" multiple
+                onChange={(e) => {
+                  const files = Array.from(e.target.files || []).slice(0, 5 - refundFiles.length);
+                  setRefundFiles(prev => [...prev, ...files].slice(0, 5));
+                }} />
+              {refundFiles.length > 0 && (
+                <div className="flex gap-2 flex-wrap">
+                  {refundFiles.map((f, i) => (
+                    <div key={i} className="relative">
+                      <img src={URL.createObjectURL(f)} alt="" className="w-16 h-16 object-cover rounded-lg border border-border" />
+                      <button onClick={() => setRefundFiles(prev => prev.filter((_, idx) => idx !== i))}
+                        className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full w-4 h-4 flex items-center justify-center text-[10px]">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => { setShowRefundDialog(false); setRefundContent(''); setRefundFiles([]); }} className="flex-1">Hủy</Button>
+              <Button onClick={handleSendRefund} disabled={!refundContent.trim() || sendingRefund} className="flex-1">
+                {sendingRefund ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+                Gửi yêu cầu
               </Button>
             </div>
           </div>

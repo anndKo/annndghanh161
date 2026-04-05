@@ -124,7 +124,7 @@ const ImageViewer = ({ images: imagesProp, initialIndex = 0, alt = 'Ảnh', open
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[100vw] max-h-[100vh] w-screen h-screen p-0 bg-black/95 border-none rounded-none">
+      <DialogContent className="max-w-[100vw] max-h-[100vh] w-screen h-screen p-0 bg-black/95 border-none rounded-none [&>button.absolute]:hidden">
         <div className="relative w-full h-full flex flex-col"
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}

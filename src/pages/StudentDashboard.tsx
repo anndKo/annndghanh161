@@ -574,12 +574,7 @@ const StudentDashboard = () => {
                   <div className="mt-4">
                     <ClassFilterPanel onFilterChange={setAdvancedFilters} />
                   </div>
-                  <div className="mt-4">
-                    <Button variant="outline" className="gap-2" onClick={() => setNearbyModalOpen(true)}>
-                      <MapPin className="w-4 h-4" />
-                      {t('student.nearby')}
-                    </Button>
-                  </div>
+                  
                 </CardContent>
               )}
             </Card>

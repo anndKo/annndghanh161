@@ -58,7 +58,10 @@ const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButto
       setLoading(false);
     };
     fetchClasses();
-    requestLocation();
+    const watchId = requestLocation();
+    return () => {
+      if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
+    };
   }, [open]);
 
   const requestLocation = async () => {

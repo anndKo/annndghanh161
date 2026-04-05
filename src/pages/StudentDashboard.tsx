@@ -521,20 +521,29 @@ const StudentDashboard = () => {
 
       <main className="container mx-auto px-4 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="flex-wrap h-auto gap-1 p-1">
-            <TabsTrigger value="browse" className="flex items-center gap-1.5 text-xs sm:text-sm px-2 sm:px-3"><Search className="w-3.5 h-3.5" /><span className="hidden xs:inline">{t('student.browse_classes')}</span><span className="xs:hidden">Tìm</span></TabsTrigger>
-            <TabsTrigger value="enrolled" className="flex items-center gap-1.5 text-xs sm:text-sm px-2 sm:px-3">
-              <BookOpen className="w-3.5 h-3.5" /><span className="hidden xs:inline">{t('student.my_classes')}</span><span className="xs:hidden">Lớp</span>
-              {approvedEnrollments.length > 0 && <Badge variant="secondary" className="h-5 text-[10px] px-1.5">{approvedEnrollments.length}</Badge>}
+          <TabsList className="w-full flex flex-wrap h-auto gap-1 p-1.5 bg-muted/60 rounded-xl">
+            <TabsTrigger value="browse" className="flex-1 min-w-fit flex items-center justify-center gap-1.5 text-xs sm:text-sm px-3 py-2 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <Search className="w-3.5 h-3.5 flex-shrink-0" />
+              <span className="whitespace-nowrap">Tìm kiếm</span>
             </TabsTrigger>
-            <TabsTrigger value="pending" className="flex items-center gap-1.5 text-xs sm:text-sm px-2 sm:px-3">
-              <Clock className="w-3.5 h-3.5" /><span className="hidden xs:inline">{t('student.pending_classes')}</span><span className="xs:hidden">Chờ</span>
-              {pendingEnrollments.length > 0 && <Badge variant="outline" className="h-5 text-[10px] px-1.5">{pendingEnrollments.length}</Badge>}
+            <TabsTrigger value="enrolled" className="flex-1 min-w-fit flex items-center justify-center gap-1.5 text-xs sm:text-sm px-3 py-2 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <BookOpen className="w-3.5 h-3.5 flex-shrink-0" />
+              <span className="whitespace-nowrap">Lớp của tôi</span>
+              {approvedEnrollments.length > 0 && <Badge variant="secondary" className="h-5 text-[10px] px-1.5 flex-shrink-0">{approvedEnrollments.length}</Badge>}
             </TabsTrigger>
-            <TabsTrigger value="enrollment-requests" className="flex items-center gap-1.5 text-xs sm:text-sm px-2 sm:px-3">
-              <ClipboardList className="w-3.5 h-3.5" /><span className="hidden xs:inline">{t('student.enrollment_requests')}</span><span className="xs:hidden">YC</span>
+            <TabsTrigger value="pending" className="flex-1 min-w-fit flex items-center justify-center gap-1.5 text-xs sm:text-sm px-3 py-2 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+              <span className="whitespace-nowrap">Chờ duyệt</span>
+              {pendingEnrollments.length > 0 && <Badge variant="outline" className="h-5 text-[10px] px-1.5 flex-shrink-0">{pendingEnrollments.length}</Badge>}
             </TabsTrigger>
-            <TabsTrigger value="top-tutors" className="flex items-center gap-1.5 text-xs sm:text-sm px-2 sm:px-3"><Star className="w-3.5 h-3.5" /><span className="hidden xs:inline">{t('student.top_tutors')}</span><span className="xs:hidden">GS</span></TabsTrigger>
+            <TabsTrigger value="enrollment-requests" className="flex-1 min-w-fit flex items-center justify-center gap-1.5 text-xs sm:text-sm px-3 py-2 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <ClipboardList className="w-3.5 h-3.5 flex-shrink-0" />
+              <span className="whitespace-nowrap">Yêu cầu</span>
+            </TabsTrigger>
+            <TabsTrigger value="top-tutors" className="flex-1 min-w-fit flex items-center justify-center gap-1.5 text-xs sm:text-sm px-3 py-2 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <Star className="w-3.5 h-3.5 flex-shrink-0" />
+              <span className="whitespace-nowrap">Gia sư</span>
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="browse">

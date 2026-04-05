@@ -71,17 +71,18 @@ const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButto
       return undefined;
     }
 
-    // Check permission state first
+    let permDenied = false;
     try {
       const perm = await navigator.permissions.query({ name: 'geolocation' });
       if (perm.state === 'denied') {
-        setPermissionDenied(true);
-        setLocationStatus('denied');
-        setShowDeniedNotice(true);
-        return;
+        permDenied = true;
       }
-    } catch {
-      // permissions API not supported, proceed with request
+    } catch {}
+    if (permDenied) {
+      setPermissionDenied(true);
+      setLocationStatus('denied');
+      setShowDeniedNotice(true);
+      return undefined;
     }
 
     setLocationStatus('loading');

@@ -1,9 +1,11 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { corsHeaders } from '../_shared/cors.ts'
+import { getCorsHeaders } from '../_shared/cors.ts'
 
 Deno.serve(async (req) => {
+  const cors = getCorsHeaders(req);
+  
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: cors })
   }
 
   try {
@@ -14,7 +16,7 @@ Deno.serve(async (req) => {
     if (!authHeader) {
       return new Response(JSON.stringify({ error: 'Missing authorization' }), {
         status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -22,26 +24,30 @@ Deno.serve(async (req) => {
     const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_PUBLISHABLE_KEY')!, {
       global: { headers: { Authorization: authHeader } },
     })
-    const { data: { user } } = await userClient.auth.getUser()
-    if (!user) {
+    
+    const token = authHeader.replace('Bearer ', '')
+    const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token)
+    if (claimsError || !claimsData?.claims) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
+    
+    const userId = claimsData.claims.sub
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey)
     const { data: roleData } = await adminClient
       .from('user_roles')
       .select('role')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('role', 'admin')
       .maybeSingle()
 
     if (!roleData) {
       return new Response(JSON.stringify({ error: 'Not admin' }), {
         status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -50,7 +56,15 @@ Deno.serve(async (req) => {
     if (!email || !new_password || !request_id) {
       return new Response(JSON.stringify({ error: 'Missing fields' }), {
         status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // Validate password strength
+    if (new_password.length < 8) {
+      return new Response(JSON.stringify({ error: 'Password too short' }), {
+        status: 400,
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -62,7 +76,7 @@ Deno.serve(async (req) => {
     if (!targetUser) {
       return new Response(JSON.stringify({ error: 'User not found' }), {
         status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -88,12 +102,12 @@ Deno.serve(async (req) => {
     })
 
     return new Response(JSON.stringify({ success: true }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...cors, 'Content-Type': 'application/json' },
     })
   } catch (err) {
-    return new Response(JSON.stringify({ error: (err as Error).message }), {
+    return new Response(JSON.stringify({ error: 'Internal error' }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...cors, 'Content-Type': 'application/json' },
     })
   }
 })

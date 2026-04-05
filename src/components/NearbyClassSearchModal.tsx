@@ -71,19 +71,13 @@ const NearbyClassSearchModal = ({ open, onClose, onClassClick, showRegisterButto
       return undefined;
     }
 
-    let permDenied = false;
-    try {
-      const perm = await navigator.permissions.query({ name: 'geolocation' });
+    navigator.permissions?.query?.({ name: 'geolocation' }).then(perm => {
       if (perm.state === 'denied') {
-        permDenied = true;
+        setPermissionDenied(true);
+        setLocationStatus('denied');
+        setShowDeniedNotice(true);
       }
-    } catch {}
-    if (permDenied) {
-      setPermissionDenied(true);
-      setLocationStatus('denied');
-      setShowDeniedNotice(true);
-      return undefined;
-    }
+    }).catch(() => {});
 
     setLocationStatus('loading');
     const watchId = navigator.geolocation.watchPosition(

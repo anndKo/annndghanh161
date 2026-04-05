@@ -1479,49 +1479,81 @@ const MessagingSystem = ({
         </DialogContent>
       </Dialog>
 
-      {/* Pay Bill Upload Dialog - with confirmation */}
+      {/* Pay Bill Upload Dialog - with payment terms */}
       <Dialog open={showPayBillDialog} onOpenChange={(v) => { setShowPayBillDialog(v); if (!v) { setPayBillFile(null); setPayBillAgreed(false); } }}>
-        <DialogContent>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Xác nhận thanh toán & hoàn tiền</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
-              <p className="font-medium">📋 Chi tiết thanh toán</p>
-              <p className="text-muted-foreground">• Sau khi thanh toán, bạn có thể yêu cầu hoàn tiền nếu có vấn đề.</p>
-              <p className="text-muted-foreground">• Tải ảnh bill/biên lai thanh toán để xác nhận.</p>
-              <p className="text-muted-foreground">• Admin sẽ xác nhận thanh toán của bạn.</p>
+            {/* Payment Terms Block */}
+            <div className="border border-border rounded-xl overflow-hidden">
+              <div className="bg-muted/60 px-4 py-2.5 font-semibold text-sm flex items-center gap-2">
+                📋 Điều khoản thanh toán và hoàn tiền
+              </div>
+              <div className="max-h-[200px] overflow-y-auto px-4 py-3 text-sm text-muted-foreground space-y-2 scrollbar-thin">
+                <p className="font-medium text-foreground">1. Quy định thanh toán</p>
+                <p>• Học viên thanh toán học phí theo hướng dẫn của Admin sau khi đăng ký lớp thành công.</p>
+                <p>• Thanh toán được xác nhận khi Admin nhận được bill/biên lai hợp lệ.</p>
+                <p>• Học phí đã thanh toán sẽ được ghi nhận vào hệ thống trong vòng 24 giờ làm việc.</p>
+                
+                <p className="font-medium text-foreground mt-3">2. Chính sách hoàn tiền</p>
+                <p>• Học viên có quyền yêu cầu hoàn tiền trong vòng 7 ngày kể từ ngày thanh toán nếu chưa tham gia buổi học nào.</p>
+                <p>• Nếu đã tham gia ít nhất 1 buổi học, học phí sẽ được tính theo số buổi đã học và hoàn lại phần còn lại (nếu có).</p>
+                <p>• Yêu cầu hoàn tiền cần kèm lý do rõ ràng và minh chứng (nếu có).</p>
+                <p>• Admin sẽ xem xét và phản hồi yêu cầu hoàn tiền trong vòng 3–5 ngày làm việc.</p>
+                <p>• Hoàn tiền sẽ được chuyển lại qua phương thức thanh toán ban đầu.</p>
+                
+                <p className="font-medium text-foreground mt-3">3. Lưu ý</p>
+                <p>• Hệ thống không chịu trách nhiệm với các giao dịch ngoài nền tảng.</p>
+                <p>• Mọi tranh chấp sẽ được giải quyết dựa trên bằng chứng từ hai bên.</p>
+                <p>• Bằng việc bấm "Chấp nhận điều khoản", bạn đồng ý với toàn bộ các điều khoản trên.</p>
+              </div>
             </div>
-            <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
-              <input type="file" id="billUpload" accept="image/*" className="hidden"
-                onChange={(e) => setPayBillFile(e.target.files?.[0] || null)} />
-              <label htmlFor="billUpload" className="cursor-pointer">
-                {payBillFile ? (
-                  <div className="flex items-center justify-center gap-2 text-green-600">
-                    <Upload className="w-5 h-5" />
-                    <span className="text-sm font-medium truncate max-w-[200px] inline-block">{payBillFile.name}</span>
-                  </div>
-                ) : (
-                  <div className="text-muted-foreground">
-                    <Upload className="w-8 h-8 mx-auto mb-2" />
-                    <span className="text-sm">Nhấn để tải bill lên</span>
-                  </div>
-                )}
-              </label>
-            </div>
+
             <div className="flex items-start gap-2">
-              <Checkbox id="agreePayment" checked={payBillAgreed} onCheckedChange={(v) => setPayBillAgreed(!!v)} />
-              <label htmlFor="agreePayment" className="text-sm cursor-pointer leading-tight">
-                Tôi đồng ý thanh toán và xác nhận thông tin trên là chính xác
+              <Checkbox id="agreeTerms" checked={payBillAgreed} onCheckedChange={(v) => setPayBillAgreed(!!v)} />
+              <label htmlFor="agreeTerms" className="text-sm cursor-pointer leading-tight font-medium">
+                Tôi đã đọc và chấp nhận điều khoản thanh toán và hoàn tiền
               </label>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => { setShowPayBillDialog(false); setPayBillFile(null); setPayBillAgreed(false); }} className="flex-1">Hủy</Button>
-              <Button onClick={handlePayBillUpload} disabled={!payBillFile || uploadingBill || !payBillAgreed} className="flex-1">
-                {uploadingBill ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
-                Gửi xác nhận
-              </Button>
-            </div>
+
+            {payBillAgreed && (
+              <>
+                <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
+                  <input type="file" id="billUpload" accept="image/*" className="hidden"
+                    onChange={(e) => setPayBillFile(e.target.files?.[0] || null)} />
+                  <label htmlFor="billUpload" className="cursor-pointer">
+                    {payBillFile ? (
+                      <div className="flex items-center justify-center gap-2 text-green-600">
+                        <Upload className="w-5 h-5" />
+                        <span className="text-sm font-medium truncate max-w-[200px] inline-block">{payBillFile.name}</span>
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground">
+                        <Upload className="w-8 h-8 mx-auto mb-2" />
+                        <span className="text-sm">Nhấn để tải bill lên</span>
+                      </div>
+                    )}
+                  </label>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => { setShowPayBillDialog(false); setPayBillFile(null); setPayBillAgreed(false); }} className="flex-1">Hủy</Button>
+                  <Button onClick={handlePayBillUpload} disabled={!payBillFile || uploadingBill} className="flex-1">
+                    {uploadingBill ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+                    Gửi xác nhận
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {!payBillAgreed && (
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => { setShowPayBillDialog(false); setPayBillFile(null); setPayBillAgreed(false); }} className="flex-1">
+                  Đóng
+                </Button>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

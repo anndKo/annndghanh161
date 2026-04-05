@@ -579,6 +579,16 @@ const StudentDashboard = () => {
               )}
             </Card>
 
+            <div className="mb-6">
+              <Button 
+                onClick={() => setNearbyModalOpen(true)}
+                className="gap-2.5 rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-300 px-5 py-2.5 text-sm font-semibold"
+              >
+                <MapPin className="w-4 h-4" />
+                📍 Tìm lớp gần đây
+              </Button>
+            </div>
+
             {filteredClasses.length === 0 ? (
               <Card><CardContent className="py-12 text-center text-muted-foreground"><BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" /><p>{t('student.no_classes')}</p></CardContent></Card>
             ) : (

@@ -53,6 +53,8 @@ const Index = () => {
     startTime: '', endTime: '', days: [], subjects: []
   });
   const [nearbyModalOpen, setNearbyModalOpen] = useState(false);
+  const [topTutor, setTopTutor] = useState<any>(null);
+  const [topTutorLoading, setTopTutorLoading] = useState(true);
 
   useEffect(() => {
     const fetchClasses = async () => {

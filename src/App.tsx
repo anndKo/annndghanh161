@@ -25,6 +25,7 @@ const AdminGuides = lazy(() => import('./pages/AdminGuides'));
 const GuidesPage = lazy(() => import('./pages/GuidesPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const AccountDeleted = lazy(() => import('./pages/AccountDeleted'));
+const TutorProfilePage = lazy(() => import('./pages/TutorProfilePage'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 const queryClient = new QueryClient({

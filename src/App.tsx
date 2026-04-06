@@ -80,6 +80,7 @@ const App = () => (
                 <Route path="/class/:classId" element={<ClassPage />} />
                 <Route path="/guides" element={<GuidesPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/tutor-profile/:tutorId" element={<TutorProfilePage />} />
                 <Route path="/account-deleted" element={<AccountDeleted />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />

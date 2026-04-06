@@ -349,51 +349,6 @@ const Index = () => {
         </div>
       </section>
 
-      {/* ── Stats Section ── */}
-      <section className="py-12 px-4" style={{ background: '#F8FAFC' }}>
-        <div className="container mx-auto max-w-7xl">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {stats.map((stat, i) => (
-              <div key={i} className="text-center py-6">
-                <p className="text-3xl md:text-4xl font-bold mb-1" style={{ color: '#2563EB' }}>{stat.value}</p>
-                <p className="text-sm" style={{ color: '#64748B' }}>{stat.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Features Section ── */}
-      <section id="features" className="py-20 md:py-28 px-4" style={{ background: '#FFFFFF' }}>
-        <div className="container mx-auto max-w-7xl">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4" style={{ color: '#0F172A' }}>
-              Tại sao chọn <span style={{ color: '#2563EB' }}>EduTutor</span>?
-            </h2>
-            <p className="text-lg max-w-2xl mx-auto" style={{ color: '#64748B' }}>
-              Nền tảng kết nối gia sư uy tín, giúp bạn tìm được gia sư phù hợp nhất.
-            </p>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {features.map((feature, i) => (
-              <div
-                key={i}
-                className="group p-6 rounded-2xl border transition-all duration-300 hover:-translate-y-1"
-                style={{ background: '#FFFFFF', borderColor: '#E2E8F0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 10px 40px -10px rgba(37,99,235,0.15)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'; }}
-              >
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-all duration-300 group-hover:scale-110" style={{ background: '#EFF6FF' }}>
-                  <feature.icon className="w-6 h-6" style={{ color: '#2563EB' }} />
-                </div>
-                <h3 className="text-lg font-semibold mb-2" style={{ color: '#0F172A' }}>{feature.title}</h3>
-                <p className="text-sm leading-relaxed" style={{ color: '#64748B' }}>{feature.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* ── Classes Section ── */}
       <section id="classes" className="py-20 md:py-28 px-4" style={{ background: '#F8FAFC' }}>
         <div className="container mx-auto max-w-7xl">
@@ -568,6 +523,51 @@ const Index = () => {
               </div>
             </div>
           )}
+        </div>
+      </section>
+
+      {/* ── Stats Section ── */}
+      <section className="py-12 px-4" style={{ background: '#F8FAFC' }}>
+        <div className="container mx-auto max-w-7xl">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {stats.map((stat, i) => (
+              <div key={i} className="text-center py-6">
+                <p className="text-3xl md:text-4xl font-bold mb-1" style={{ color: '#2563EB' }}>{stat.value}</p>
+                <p className="text-sm" style={{ color: '#64748B' }}>{stat.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Features Section ── */}
+      <section id="features" className="py-20 md:py-28 px-4" style={{ background: '#FFFFFF' }}>
+        <div className="container mx-auto max-w-7xl">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4" style={{ color: '#0F172A' }}>
+              Tại sao chọn <span style={{ color: '#2563EB' }}>EduTutor</span>?
+            </h2>
+            <p className="text-lg max-w-2xl mx-auto" style={{ color: '#64748B' }}>
+              Nền tảng kết nối gia sư uy tín, giúp bạn tìm được gia sư phù hợp nhất.
+            </p>
+          </div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {features.map((feature, i) => (
+              <div
+                key={i}
+                className="group p-6 rounded-2xl border transition-all duration-300 hover:-translate-y-1"
+                style={{ background: '#FFFFFF', borderColor: '#E2E8F0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 10px 40px -10px rgba(37,99,235,0.15)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'; }}
+              >
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-all duration-300 group-hover:scale-110" style={{ background: '#EFF6FF' }}>
+                  <feature.icon className="w-6 h-6" style={{ color: '#2563EB' }} />
+                </div>
+                <h3 className="text-lg font-semibold mb-2" style={{ color: '#0F172A' }}>{feature.title}</h3>
+                <p className="text-sm leading-relaxed" style={{ color: '#64748B' }}>{feature.description}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 

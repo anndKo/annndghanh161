@@ -258,57 +258,68 @@ const Index = () => {
               </div>
             </div>
 
-            {/* Right - Tutor preview card */}
+            {/* Right - Top Tutor preview card */}
             <div className="relative hidden lg:flex items-center justify-center">
-              {/* Background glow */}
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className="w-[380px] h-[380px] rounded-full blur-3xl opacity-20" style={{ background: '#93C5FD' }} />
               </div>
 
-              {/* Main card */}
-              <div className="relative w-full max-w-[420px] rounded-2xl p-8 border" style={{ background: '#FFFFFF', borderColor: '#E2E8F0', boxShadow: '0 20px 60px -15px rgba(37, 99, 235, 0.12), 0 4px 20px -5px rgba(0,0,0,0.06)' }}>
-                {/* Tutor avatar */}
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #2563EB, #3B82F6)' }}>
-                    <img src={logoImg} alt="Tutor" className="w-10 h-10 rounded-xl object-cover" />
+              {topTutorLoading ? (
+                <div className="relative w-full max-w-[420px] rounded-2xl p-8 border flex items-center justify-center h-64" style={{ background: '#FFFFFF', borderColor: '#E2E8F0' }}>
+                  <div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#2563EB', borderTopColor: 'transparent' }} />
+                </div>
+              ) : topTutor ? (
+                <div className="relative w-full max-w-[420px] rounded-2xl p-8 border" style={{ background: '#FFFFFF', borderColor: '#E2E8F0', boxShadow: '0 20px 60px -15px rgba(37, 99, 235, 0.12), 0 4px 20px -5px rgba(0,0,0,0.06)' }}>
+                  <div className="absolute -top-3 left-6 px-3 py-1 rounded-full text-[11px] font-bold text-white" style={{ background: 'linear-gradient(135deg, #F59E0B, #EAB308)' }}>
+                    ⭐ Gia sư nổi bật
                   </div>
-                  <div>
-                    <p className="font-bold text-lg" style={{ color: '#0F172A' }}>Nguyễn Văn A</p>
-                    <p className="text-sm" style={{ color: '#64748B' }}>Gia sư Toán • 5 năm KN</p>
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold text-white" style={{ background: 'linear-gradient(135deg, #2563EB, #3B82F6)' }}>
+                      {topTutor.full_name?.charAt(0)?.toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="font-bold text-lg" style={{ color: '#0F172A' }}>{topTutor.full_name}</p>
+                      <p className="text-sm" style={{ color: '#64748B' }}>{topTutor.school_name || topTutor.best_subject}</p>
+                    </div>
                   </div>
-                </div>
-
-                {/* Rating */}
-                <div className="flex items-center gap-2 mb-5">
-                  <div className="flex gap-0.5">
-                    {[1, 2, 3, 4, 5].map(i => (
-                      <Star key={i} className="w-4 h-4 fill-current" style={{ color: '#F59E0B' }} />
-                    ))}
+                  <div className="flex items-center gap-2 mb-5">
+                    <div className="flex gap-0.5">
+                      {[1, 2, 3, 4, 5].map(i => (
+                        <Star key={i} className="w-4 h-4" style={{ color: i <= Math.round(topTutor.avg) ? '#F59E0B' : '#E2E8F0', fill: i <= Math.round(topTutor.avg) ? '#F59E0B' : 'none' }} />
+                      ))}
+                    </div>
+                    <span className="text-sm font-semibold" style={{ color: '#0F172A' }}>{topTutor.avg.toFixed(1)}</span>
+                    <span className="text-sm" style={{ color: '#64748B' }}>({topTutor.count} đánh giá)</span>
                   </div>
-                  <span className="text-sm font-semibold" style={{ color: '#0F172A' }}>4.9</span>
-                  <span className="text-sm" style={{ color: '#64748B' }}>(128 đánh giá)</span>
+                  <div className="flex flex-wrap gap-2 mb-5">
+                    {topTutor.best_subject && <span className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: '#2563EB' }}>⭐ {topTutor.best_subject}</span>}
+                    {topTutor.teaching_format && (
+                      <span className="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ background: '#EFF6FF', color: '#2563EB' }}>
+                        {topTutor.teaching_format === 'online' ? 'Online' : topTutor.teaching_format === 'offline' ? 'Offline' : 'Online & Offline'}
+                      </span>
+                    )}
+                  </div>
+                  {topTutor.teaching_areas?.length > 0 && (
+                    <div className="flex items-center gap-2 mb-6">
+                      <MapPin className="w-4 h-4" style={{ color: '#64748B' }} />
+                      <span className="text-sm" style={{ color: '#64748B' }}>{topTutor.teaching_areas.join(', ')}</span>
+                    </div>
+                  )}
+                  <Link to={`/tutor-profile/${topTutor.tutor_id}`}>
+                    <button className="w-full py-3 rounded-xl text-sm font-semibold text-white transition-all duration-200 hover:shadow-lg hover:scale-[1.02]" style={{ background: 'linear-gradient(135deg, #2563EB, #3B82F6)' }}>
+                      Xem hồ sơ gia sư
+                    </button>
+                  </Link>
                 </div>
-
-                {/* Tags */}
-                <div className="flex flex-wrap gap-2 mb-6">
-                  {['Online', 'Offline', 'Toán', 'Lý'].map(tag => (
-                    <span key={tag} className="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ background: '#EFF6FF', color: '#2563EB' }}>
-                      {tag}
-                    </span>
-                  ))}
+              ) : (
+                <div className="relative w-full max-w-[420px] rounded-2xl p-8 border text-center" style={{ background: '#FFFFFF', borderColor: '#E2E8F0', boxShadow: '0 20px 60px -15px rgba(37, 99, 235, 0.12)' }}>
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: '#EFF6FF' }}>
+                    <GraduationCap className="w-8 h-8" style={{ color: '#2563EB' }} />
+                  </div>
+                  <p className="font-semibold mb-1" style={{ color: '#0F172A' }}>Chưa có gia sư nào</p>
+                  <p className="text-sm" style={{ color: '#64748B' }}>Hãy quay lại sau nhé!</p>
                 </div>
-
-                {/* Location */}
-                <div className="flex items-center gap-2 mb-6">
-                  <MapPin className="w-4 h-4" style={{ color: '#64748B' }} />
-                  <span className="text-sm" style={{ color: '#64748B' }}>Quận 1, TP. Hồ Chí Minh</span>
-                </div>
-
-                {/* CTA */}
-                <button className="w-full py-3 rounded-xl text-sm font-semibold text-white transition-all duration-200 hover:shadow-lg" style={{ background: 'linear-gradient(135deg, #2563EB, #3B82F6)' }}>
-                  Xem hồ sơ gia sư
-                </button>
-              </div>
+              )}
 
               {/* Floating cards */}
               <div className="absolute -left-4 top-12 p-3 rounded-xl border animate-float" style={{ background: '#FFFFFF', borderColor: '#E2E8F0', boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
@@ -322,7 +333,6 @@ const Index = () => {
                   </div>
                 </div>
               </div>
-
               <div className="absolute -right-4 bottom-20 p-3 rounded-xl border animate-float" style={{ background: '#FFFFFF', borderColor: '#E2E8F0', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', animationDelay: '1s' }}>
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: '#EFF6FF' }}>

@@ -207,11 +207,11 @@ const Index = () => {
 
               {/* Headline */}
               <h1 className="font-bold leading-[1.1] tracking-tight" style={{ color: '#0F172A' }}>
-                <span className="block text-[36px] sm:text-[42px] md:text-[48px] lg:text-[56px]">
+                <span className="block text-[clamp(24px,7vw,56px)] whitespace-nowrap">
                   Học tập hiệu quả với
                 </span>
                 <span
-                  className="block text-[36px] sm:text-[42px] md:text-[48px] lg:text-[56px]"
+                  className="block text-[clamp(24px,7vw,56px)] whitespace-nowrap"
                   style={{ background: 'linear-gradient(135deg, #2563EB, #3B82F6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}
                 >
                   gia sư chất lượng

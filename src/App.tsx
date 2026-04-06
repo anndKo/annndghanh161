@@ -25,6 +25,7 @@ const AdminGuides = lazy(() => import('./pages/AdminGuides'));
 const GuidesPage = lazy(() => import('./pages/GuidesPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const AccountDeleted = lazy(() => import('./pages/AccountDeleted'));
+const TutorProfilePage = lazy(() => import('./pages/TutorProfilePage'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 const queryClient = new QueryClient({
@@ -79,6 +80,7 @@ const App = () => (
                 <Route path="/class/:classId" element={<ClassPage />} />
                 <Route path="/guides" element={<GuidesPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/tutor-profile/:tutorId" element={<TutorProfilePage />} />
                 <Route path="/account-deleted" element={<AccountDeleted />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />

@@ -67,6 +67,40 @@ const Index = () => {
       setLoadingClasses(false);
     };
     fetchClasses();
+
+    // Fetch top-rated tutor
+    const fetchTopTutor = async () => {
+      setTopTutorLoading(true);
+      try {
+        const { data: allRatings } = await supabase
+          .from('tutor_ratings')
+          .select('tutor_id, rating');
+        if (allRatings && allRatings.length > 0) {
+          const tutorMap: Record<string, { total: number; count: number }> = {};
+          allRatings.forEach((r: any) => {
+            if (!tutorMap[r.tutor_id]) tutorMap[r.tutor_id] = { total: 0, count: 0 };
+            tutorMap[r.tutor_id].total += r.rating;
+            tutorMap[r.tutor_id].count++;
+          });
+          const best = Object.entries(tutorMap)
+            .map(([id, v]) => ({ tutor_id: id, avg: v.total / v.count, count: v.count }))
+            .sort((a, b) => b.avg - a.avg || b.count - a.count)[0];
+          if (best) {
+            const { data: app } = await supabase
+              .from('tutor_applications')
+              .select('full_name, best_subject, teaching_format, teaching_areas, school_name')
+              .eq('user_id', best.tutor_id)
+              .eq('status', 'approved')
+              .single();
+            if (app) {
+              setTopTutor({ ...best, ...app });
+            }
+          }
+        }
+      } catch (e) { console.error(e); }
+      setTopTutorLoading(false);
+    };
+    fetchTopTutor();
   }, []);
 
   const fuzzyAddressMatch = (address: string, query: string): number => {

@@ -66,19 +66,35 @@ const TutorRating = ({
 
     setSubmitting(true);
     try {
-      const { error } = await supabase.from('tutor_ratings').upsert({
-        tutor_id: tutorId,
-        student_id: user.id,
-        class_id: classId,
-        rating,
-        comment: comment.trim() || null,
-      });
+      const { error } = await supabase.from('tutor_ratings').upsert(
+        {
+          tutor_id: tutorId,
+          student_id: user.id,
+          class_id: classId,
+          rating,
+          comment: comment.trim() || null,
+          status: 'pending',
+        },
+        { onConflict: 'tutor_id,student_id,class_id' }
+      );
 
       if (error) throw error;
 
+      // Notify admin about pending rating
+      const { data: adminData } = await supabase.from('user_roles').select('user_id').eq('role', 'admin').limit(1).single();
+      if (adminData) {
+        await supabase.from('notifications').insert({
+          user_id: adminData.user_id,
+          type: 'rating_pending',
+          title: 'Đánh giá mới cần duyệt',
+          message: `Học viên đã đánh giá ${rating} sao cho gia sư.`,
+          related_id: classId,
+        });
+      }
+
       toast({
-        title: 'Đánh giá thành công',
-        description: 'Cảm ơn bạn đã đánh giá gia sư!',
+        title: 'Đã gửi đánh giá',
+        description: 'Đánh giá của bạn sẽ được admin duyệt trước khi hiển thị.',
       });
 
       onOpenChange(false);
@@ -179,7 +195,8 @@ export const TutorStars = ({ tutorId }: { tutorId: string }) => {
     const { data, error } = await supabase
       .from('tutor_ratings')
       .select('rating')
-      .eq('tutor_id', tutorId);
+      .eq('tutor_id', tutorId)
+      .eq('status', 'approved');
 
     if (!error && data && data.length > 0) {
       const avg = data.reduce((sum, r) => sum + r.rating, 0) / data.length;

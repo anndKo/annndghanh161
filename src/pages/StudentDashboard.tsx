@@ -74,7 +74,7 @@ const TutorNameWithStars = memo(({ tutorId }: { tutorId: string }) => {
     const fetchData = async () => {
       const [{ data: profile }, { data: ratings }, { data: application }] = await Promise.all([
         supabase.from('profiles').select('full_name').eq('user_id', tutorId).single(),
-        supabase.from('tutor_ratings').select('rating').eq('tutor_id', tutorId),
+        supabase.from('tutor_ratings').select('rating').eq('tutor_id', tutorId).eq('status', 'approved'),
         supabase.from('tutor_applications').select('status').eq('user_id', tutorId).eq('status', 'approved').maybeSingle(),
       ]);
       setTutorName(profile?.full_name || t('role.tutor'));
@@ -198,7 +198,7 @@ const StudentDashboard = () => {
   const [reportContent, setReportContent] = useState('');
   const [reportTutorId, setReportTutorId] = useState<string | null>(null);
   const [reportTutorName, setReportTutorName] = useState('');
-
+  const [pendingEnrollmentRequestsCount, setPendingEnrollmentRequestsCount] = useState(0);
   useEffect(() => {
     const fetchAdmin = async () => {
       const { data } = await supabase
@@ -230,9 +230,19 @@ const StudentDashboard = () => {
 
   useEffect(() => {
     if (user) { 
-      Promise.all([fetchClasses(), fetchEnrollments(), fetchTopTutors()]);
+      Promise.all([fetchClasses(), fetchEnrollments(), fetchTopTutors(), fetchPendingEnrollmentRequests()]);
     }
   }, [user]);
+
+  const fetchPendingEnrollmentRequests = async () => {
+    if (!user) return;
+    const { count } = await supabase
+      .from('enrollment_requests')
+      .select('*', { count: 'exact', head: true })
+      .eq('student_id', user.id)
+      .in('status', ['pending', 'student_accepted']);
+    setPendingEnrollmentRequestsCount(count || 0);
+  };
 
   const fetchClasses = async () => {
     try {
@@ -258,7 +268,7 @@ const StudentDashboard = () => {
 
   const fetchTopTutors = async () => {
     try {
-      const { data, error } = await supabase.from('tutor_ratings').select('tutor_id, rating');
+      const { data, error } = await supabase.from('tutor_ratings').select('tutor_id, rating').eq('status', 'approved');
       if (error) throw error;
       
       const tutorRatings: { [key: string]: { total: number; count: number } } = {};
@@ -539,6 +549,7 @@ const StudentDashboard = () => {
             <TabsTrigger value="enrollment-requests" className="flex-1 min-w-fit flex items-center justify-center gap-1.5 text-xs sm:text-sm px-3 py-2 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <ClipboardList className="w-3.5 h-3.5 flex-shrink-0" />
               <span className="whitespace-nowrap">Yêu cầu</span>
+              {pendingEnrollmentRequestsCount > 0 && <Badge variant="destructive" className="h-5 text-[10px] px-1.5 flex-shrink-0 animate-pulse">{pendingEnrollmentRequestsCount}</Badge>}
             </TabsTrigger>
             <TabsTrigger value="top-tutors" className="flex-1 min-w-fit flex items-center justify-center gap-1.5 text-xs sm:text-sm px-3 py-2 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <Star className="w-3.5 h-3.5 flex-shrink-0" />
@@ -642,12 +653,17 @@ const StudentDashboard = () => {
                           ) : (
                             <span className="text-lg font-bold text-primary">{formatPrice(classItem.price_per_session)}{t('common.per_session')}</span>
                           )}
+                        </div>
+                        <div className="flex gap-2 mt-2">
+                          <Button variant="outline" size="sm" className="flex-1" onClick={() => navigate(`/class-detail/${classItem.id}`)}>
+                            Xem chi tiết
+                          </Button>
                           {enrollStatus === 'approved' ? (
-                            <Badge className="bg-success"><CheckCircle2 className="w-3 h-3 mr-1" />{t('student.joined')}</Badge>
+                            <Badge className="bg-success flex-1 justify-center"><CheckCircle2 className="w-3 h-3 mr-1" />{t('student.joined')}</Badge>
                           ) : enrollStatus === 'pending' ? (
-                            <Badge variant="outline"><Clock className="w-3 h-3 mr-1" />{t('student.pending')}</Badge>
+                            <Badge variant="outline" className="flex-1 justify-center"><Clock className="w-3 h-3 mr-1" />{t('student.pending')}</Badge>
                           ) : (
-                            <Button size="sm" onClick={() => handleEnrollClass(classItem)} disabled={enrollingClassId === classItem.id}>
+                            <Button size="sm" className="flex-1" onClick={() => handleEnrollClass(classItem)} disabled={enrollingClassId === classItem.id}>
                               {enrollingClassId === classItem.id ? <Loader2 className="w-4 h-4 animate-spin" /> : t('common.register')}
                             </Button>
                           )}
@@ -714,19 +730,24 @@ const StudentDashboard = () => {
                             const isRealExpired = enrollment.enrollment_type === 'real' && enrollment.enrollment_expires_at && new Date(enrollment.enrollment_expires_at) <= new Date();
                             if (isTrialExpired || isRealExpired) {
                               return (
-                                <ReEnrollButton
-                                  classId={enrollment.class_id}
-                                  className={enrollment.classes.name}
-                                  classDisplayId={enrollment.classes.display_id}
-                                  onSuccess={() => {
-                                    fetchEnrollments();
-                                    getRemovedEnrollments().then(data => setExpiredEnrollments(data));
-                                  }}
-                                  onOpenMessaging={() => {
-                                    setMessagingReceiver({ id: adminId || '', name: 'Admin' });
-                                    setMessagingOpen(true);
-                                  }}
-                                />
+                                <>
+                                  <ReEnrollButton
+                                    classId={enrollment.class_id}
+                                    className={enrollment.classes.name}
+                                    classDisplayId={enrollment.classes.display_id}
+                                    onSuccess={() => {
+                                      fetchEnrollments();
+                                      getRemovedEnrollments().then(data => setExpiredEnrollments(data));
+                                    }}
+                                    onOpenMessaging={() => {
+                                      setMessagingReceiver({ id: adminId || '', name: 'Admin' });
+                                      setMessagingOpen(true);
+                                    }}
+                                  />
+                                  {enrollment.classes.tutor_id && (
+                                    <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); setSelectedClassForRating(enrollment.classes); setRatingOpen(true); }}><Star className="w-4 h-4 mr-1" /><span className="hidden sm:inline">{t('student.rate')}</span></Button>
+                                  )}
+                                </>
                               );
                             }
                             return (

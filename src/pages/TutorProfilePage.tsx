@@ -44,14 +44,36 @@ const TutorProfilePage = () => {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      // Fetch tutor info
+      // Fetch tutor application info
       const { data: app } = await supabase
         .from('tutor_applications')
         .select('*')
         .eq('user_id', tutorId)
         .eq('status', 'approved')
-        .single();
-      setTutor(app);
+        .maybeSingle();
+
+      if (app) {
+        setTutor(app);
+      } else {
+        // Fallback: use profile data
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name, avatar_url')
+          .eq('user_id', tutorId)
+          .single();
+        if (profile) {
+          setTutor({
+            full_name: profile.full_name,
+            avatar_url: profile.avatar_url,
+            school_name: null,
+            faculty: null,
+            best_subject: null,
+            teachable_subjects: [],
+            teaching_format: null,
+            teaching_areas: [],
+          });
+        }
+      }
 
       // Fetch classes
       const { data: cls } = await supabase
@@ -66,6 +88,7 @@ const TutorProfilePage = () => {
         .from('tutor_ratings')
         .select('*')
         .eq('tutor_id', tutorId)
+        .eq('status', 'approved')
         .order('created_at', { ascending: false })
         .limit(10);
       setRatings(rats || []);
@@ -260,12 +283,12 @@ const TutorProfilePage = () => {
                     <div className="flex items-center justify-between pt-3" style={{ borderTop: '1px solid #E2E8F0' }}>
                       <span className="text-lg font-bold" style={{ color: '#2563EB' }}>{formatPriceDisplay(c.price_per_session)}/buổi</span>
                       <div className="flex gap-2">
-                        <Link to={`/class/${c.id}`}>
+                        <Link to={`/class-detail/${c.id}`}>
                           <button className="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors" style={{ borderColor: '#E2E8F0', color: '#64748B' }}>
                             Chi tiết
                           </button>
                         </Link>
-                        <Link to="/auth?tab=signup&role=student">
+                        <Link to={`/class-detail/${c.id}`}>
                           <button className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: '#2563EB' }}>
                             Đăng ký
                           </button>

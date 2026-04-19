@@ -74,7 +74,8 @@ const Index = () => {
       try {
         const { data: allRatings } = await supabase
           .from('tutor_ratings')
-          .select('tutor_id, rating');
+          .select('tutor_id, rating')
+          .eq('status', 'approved');
         if (allRatings && allRatings.length > 0) {
           const tutorMap: Record<string, { total: number; count: number }> = {};
           allRatings.forEach((r: any) => {
@@ -86,14 +87,25 @@ const Index = () => {
             .map(([id, v]) => ({ tutor_id: id, avg: v.total / v.count, count: v.count }))
             .sort((a, b) => b.avg - a.avg || b.count - a.count)[0];
           if (best) {
+            // Try tutor_applications first, fallback to profiles
             const { data: app } = await supabase
               .from('tutor_applications')
               .select('full_name, best_subject, teaching_format, teaching_areas, school_name')
               .eq('user_id', best.tutor_id)
               .eq('status', 'approved')
-              .single();
+              .maybeSingle();
             if (app) {
               setTopTutor({ ...best, ...app });
+            } else {
+              // Fallback: use profile name
+              const { data: profile } = await supabase
+                .from('profiles')
+                .select('full_name')
+                .eq('user_id', best.tutor_id)
+                .single();
+              if (profile) {
+                setTopTutor({ ...best, full_name: profile.full_name, best_subject: null, teaching_format: null, teaching_areas: [], school_name: null });
+              }
             }
           }
         }
@@ -509,13 +521,22 @@ const Index = () => {
                             </span>
                           )}
                         </div>
-                        <button
-                          onClick={() => navigate('/auth?tab=signup&role=student')}
-                          className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all duration-200 hover:shadow-md hover:scale-[1.02]"
-                          style={{ background: '#2563EB' }}
-                        >
-                          Đăng ký học
-                        </button>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => navigate(`/class-detail/${classItem.id}`)}
+                            className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 hover:shadow-md border"
+                            style={{ borderColor: '#2563EB', color: '#2563EB', background: 'transparent' }}
+                          >
+                            Xem chi tiết
+                          </button>
+                          <button
+                            onClick={() => navigate('/auth?tab=signup&role=student')}
+                            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all duration-200 hover:shadow-md hover:scale-[1.02]"
+                            style={{ background: '#2563EB' }}
+                          >
+                            Đăng ký học
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>

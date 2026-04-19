@@ -20,6 +20,7 @@ const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const TutorDashboard = lazy(() => import('./pages/TutorDashboard'));
 const StudentDashboard = lazy(() => import('./pages/StudentDashboard'));
 const ClassPage = lazy(() => import('./pages/ClassPage'));
+const ClassDetailPage = lazy(() => import('./pages/ClassDetailPage'));
 const TutorManagement = lazy(() => import('./pages/TutorManagement'));
 const AdminGuides = lazy(() => import('./pages/AdminGuides'));
 const GuidesPage = lazy(() => import('./pages/GuidesPage'));
@@ -78,6 +79,7 @@ const App = () => (
                 <Route path="/tutor" element={<TutorDashboard />} />
                 <Route path="/student" element={<StudentDashboard />} />
                 <Route path="/class/:classId" element={<ClassPage />} />
+                <Route path="/class-detail/:classId" element={<ClassDetailPage />} />
                 <Route path="/guides" element={<GuidesPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/tutor-profile/:tutorId" element={<TutorProfilePage />} />

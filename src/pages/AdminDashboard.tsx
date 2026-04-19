@@ -61,6 +61,7 @@ import {
   Megaphone,
   UserX,
   Home,
+  Star,
 } from 'lucide-react';
 import {
   Dialog,
@@ -322,6 +323,13 @@ const AdminDashboard = () => {
   const [unreadReportsCount, setUnreadReportsCount] = useState(0);
   const [announcementManagementOpen, setAnnouncementManagementOpen] = useState(false);
   const [accountManagementOpen, setAccountManagementOpen] = useState(false);
+  const [pendingRatingsCount, setPendingRatingsCount] = useState(0);
+  const [ratingApprovalOpen, setRatingApprovalOpen] = useState(false);
+  const [pendingRatings, setPendingRatings] = useState<any[]>([]);
+  const [pendingClassRequestsCount, setPendingClassRequestsCount] = useState(0);
+  const [pendingSupportCount, setPendingSupportCount] = useState(0);
+  const [pendingPasswordResetCount, setPendingPasswordResetCount] = useState(0);
+  const [pendingEnrollmentApprovalCount, setPendingEnrollmentApprovalCount] = useState(0);
 
   // Listen for openMessaging event from AdminClassRequestsDialog
   useEffect(() => {
@@ -350,8 +358,61 @@ const AdminDashboard = () => {
       fetchClasses();
       fetchEnrollments();
       fetchUnreadReportsCount();
+      fetchPendingCounts();
     }
   }, [user, role]);
+
+  const fetchPendingCounts = async () => {
+    const [ratingsRes, classReqRes, supportRes, pwdRes, enrollApprovalRes] = await Promise.all([
+      supabase.from('tutor_ratings').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('class_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('support_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('password_reset_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('enrollment_requests').select('*', { count: 'exact', head: true }).eq('status', 'student_accepted'),
+    ]);
+    setPendingRatingsCount(ratingsRes.count || 0);
+    setPendingClassRequestsCount(classReqRes.count || 0);
+    setPendingSupportCount(supportRes.count || 0);
+    setPendingPasswordResetCount(pwdRes.count || 0);
+    setPendingEnrollmentApprovalCount(enrollApprovalRes.count || 0);
+  };
+
+  const fetchPendingRatings = async () => {
+    const { data } = await supabase
+      .from('tutor_ratings')
+      .select('*')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+    
+    if (!data) return;
+    // Enrich with student and tutor names
+    const studentIds = [...new Set(data.map(r => r.student_id))];
+    const tutorIds = [...new Set(data.map(r => r.tutor_id))];
+    const allIds = [...new Set([...studentIds, ...tutorIds])];
+    
+    const { data: profiles } = await supabase.from('profiles').select('user_id, full_name').in('user_id', allIds);
+    
+    const enriched = data.map(r => ({
+      ...r,
+      student_name: profiles?.find(p => p.user_id === r.student_id)?.full_name || 'Học viên',
+      tutor_name: profiles?.find(p => p.user_id === r.tutor_id)?.full_name || 'Gia sư',
+    }));
+    setPendingRatings(enriched);
+  };
+
+  const handleApproveRating = async (ratingId: string) => {
+    await supabase.from('tutor_ratings').update({ status: 'approved' }).eq('id', ratingId);
+    toast({ title: 'Đã duyệt đánh giá' });
+    fetchPendingRatings();
+    fetchPendingCounts();
+  };
+
+  const handleRejectRating = async (ratingId: string) => {
+    await supabase.from('tutor_ratings').update({ status: 'rejected' }).eq('id', ratingId);
+    toast({ title: 'Đã từ chối đánh giá' });
+    fetchPendingRatings();
+    fetchPendingCounts();
+  };
 
   const fetchUnreadReportsCount = async () => {
     const { count } = await supabase
@@ -807,25 +868,28 @@ const AdminDashboard = () => {
                 <Home className="w-5 h-5 mr-2" />
                 Trang chủ
               </Button>
-              <Button variant="ghost" className="w-full justify-start" onClick={() => setClassRequestsOpen(true)}>
+              <Button variant="ghost" className="w-full justify-start relative" onClick={() => setClassRequestsOpen(true)}>
                 <Briefcase className="w-5 h-5 mr-2" />
                 Yêu cầu nhận lớp
+                {pendingClassRequestsCount > 0 && <Badge variant="destructive" className="ml-auto text-xs">{pendingClassRequestsCount}</Badge>}
               </Button>
               <Button variant="ghost" className="w-full justify-start" onClick={() => setAttendanceStatsOpen(true)}>
                 <CalendarCheck className="w-5 h-5 mr-2" />
                 Thống kê điểm danh
               </Button>
-              <Button variant="ghost" className="w-full justify-start" onClick={() => setPasswordResetOpen(true)}>
+              <Button variant="ghost" className="w-full justify-start relative" onClick={() => setPasswordResetOpen(true)}>
                 <RefreshCw className="w-5 h-5 mr-2" />
                 Yêu cầu đặt lại mật khẩu
+                {pendingPasswordResetCount > 0 && <Badge variant="destructive" className="ml-auto text-xs">{pendingPasswordResetCount}</Badge>}
               </Button>
               <Button variant="ghost" className="w-full justify-start" onClick={() => setMessageManagementOpen(true)}>
                 <MessageSquare className="w-5 h-5 mr-2" />
                 Quản lý tin nhắn
               </Button>
-              <Button variant="ghost" className="w-full justify-start" onClick={() => setSupportManagementOpen(true)}>
+              <Button variant="ghost" className="w-full justify-start relative" onClick={() => setSupportManagementOpen(true)}>
                 <HelpCircle className="w-5 h-5 mr-2" />
                 Quản lý hỗ trợ khách hàng
+                {pendingSupportCount > 0 && <Badge variant="destructive" className="ml-auto text-xs">{pendingSupportCount}</Badge>}
               </Button>
               <Button variant="ghost" className="w-full justify-start relative" onClick={() => { setReportsOpen(true); fetchUnreadReportsCount(); }}>
                 <Flag className="w-5 h-5 mr-2" />
@@ -927,6 +991,7 @@ const AdminDashboard = () => {
             <TabsTrigger value="class-requests" className="flex items-center gap-2">
               <Briefcase className="w-4 h-4" />
               Yêu cầu nhận lớp
+              {pendingClassRequestsCount > 0 && <Badge variant="destructive">{pendingClassRequestsCount}</Badge>}
             </TabsTrigger>
             <TabsTrigger value="attendance" className="flex items-center gap-2">
               <CalendarCheck className="w-4 h-4" />
@@ -1007,10 +1072,18 @@ const AdminDashboard = () => {
                   <CardTitle>Duyệt học viên vào lớp</CardTitle>
                   <CardDescription>Xem và duyệt yêu cầu đăng ký lớp của học viên</CardDescription>
                 </div>
-              <Button onClick={() => setEnrollmentApprovalOpen(true)} variant="outline">
+              <div className="flex gap-2 flex-wrap">
+                <Button onClick={() => { setRatingApprovalOpen(true); fetchPendingRatings(); }} variant="outline" className="relative">
+                  <Star className="w-4 h-4 mr-2" />
+                  Duyệt đánh giá
+                  {pendingRatingsCount > 0 && <Badge variant="destructive" className="ml-2 text-xs">{pendingRatingsCount}</Badge>}
+                </Button>
+                <Button onClick={() => setEnrollmentApprovalOpen(true)} variant="outline" className="relative">
                   <ClipboardList className="w-4 h-4 mr-2" />
                   Duyệt yêu cầu học thử/thật
+                  {pendingEnrollmentApprovalCount > 0 && <Badge variant="destructive" className="ml-2 text-xs">{pendingEnrollmentApprovalCount}</Badge>}
                 </Button>
+              </div>
                 <Button onClick={() => fetchEnrollments()} variant="ghost" size="icon" title="Làm mới">
                   <RefreshCw className="w-4 h-4" />
                 </Button>
@@ -1521,6 +1594,56 @@ const AdminDashboard = () => {
         open={accountManagementOpen}
         onOpenChange={setAccountManagementOpen}
       />
+
+      {/* Rating Approval Dialog */}
+      <Dialog open={ratingApprovalOpen} onOpenChange={setRatingApprovalOpen}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Star className="w-5 h-5 text-yellow-500" />
+              Duyệt đánh giá ({pendingRatings.length})
+            </DialogTitle>
+            <DialogDescription>Xem và duyệt đánh giá từ học viên trước khi hiển thị cho gia sư.</DialogDescription>
+          </DialogHeader>
+          {pendingRatings.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Star className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>Không có đánh giá nào cần duyệt</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {pendingRatings.map((r: any) => (
+                <div key={r.id} className="p-4 border border-border rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">Học viên: <span className="text-primary">{r.student_name}</span></p>
+                      <p className="text-sm text-muted-foreground">Gia sư: {r.tutor_name}</p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {[1, 2, 3, 4, 5].map(s => (
+                        <Star key={s} className={`w-4 h-4 ${s <= r.rating ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground'}`} />
+                      ))}
+                    </div>
+                  </div>
+                  {r.comment && (
+                    <p className="text-sm bg-muted/50 p-3 rounded-lg">{r.comment}</p>
+                  )}
+                  <div className="flex gap-2">
+                    <Button size="sm" className="flex-1" onClick={() => handleApproveRating(r.id)}>
+                      <CheckCircle2 className="w-4 h-4 mr-1" />
+                      Duyệt
+                    </Button>
+                    <Button size="sm" variant="outline" className="flex-1 text-destructive" onClick={() => handleRejectRating(r.id)}>
+                      <XCircle className="w-4 h-4 mr-1" />
+                      Từ chối
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
